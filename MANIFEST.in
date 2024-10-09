@@ -1,0 +1,3 @@
+include README.md
+prune tests
+exclude .gitignore

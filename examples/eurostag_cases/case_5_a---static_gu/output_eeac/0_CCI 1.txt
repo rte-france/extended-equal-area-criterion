@@ -1,0 +1,19 @@
+Report for node 0_CCI 1:
+	Execution time: 0.002 seconds
+	Configuration:
+		Type of identifier: DuringFaultTrajectoryCriticalClustersIdentifier
+		Threshold: 0.5
+		Minimum cluster power: 0.0 MW [Base: 100.0 MW]
+		Threshold decrement: 0.1
+		Maximum number of candidates: 12
+		Never critical generators: .EQV1T 1, .EQV2T 1, .EQV3T 1, .EQV4T 1, .EQV5T 1, .EQV6T 1, .EQV7T 1, .EQV8T 1, .EQV9T 1, .EQVAT 1, .EQVBT 1, .EQVCT 1, .EQVDT 1, .EQVET 1, .EQVFT 1
+		during fault identification time step: 170.0
+		significant angle variation threshold: 5.0
+	Inputs:
+		Generators: GEN_AT 2, GEN_DT 2
+	Outputs:
+		Critical cluster candidates:
+			Cluster 0: GEN_AT 2
+		max_angle_at_dft_identification_time:             19.169
+
+

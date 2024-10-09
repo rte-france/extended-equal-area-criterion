@@ -1,0 +1,22 @@
+Report for node 2_CCS 1:
+	Execution time: 0.002 seconds
+	Configuration:
+		Type of selector: MinCriticalClusterSelector
+	Inputs:
+		Cluster 0:
+			Critical generators: GEN_AT 2
+			Critical angle: 0.637 rad [36.481 deg]
+			Critical time: 151.16 ms
+			Maximum angle: 1.942 rad [111.281 deg]
+			Maximum time: 575.3 ms
+			OMIB stability state: POTENTIALLY STABLE
+			OMIB swing state: FORWARD
+	Outputs:
+		Critical generators: GEN_AT 2
+		Critical angle: 0.637 rad [36.481 deg]
+		Critical time: 151.16 ms
+		Maximum angle: 1.942 rad [111.281 deg]
+		Maximum time: 575.3 ms
+		OMIB stability state: POTENTIALLY STABLE
+		OMIB swing state: FORWARD
+

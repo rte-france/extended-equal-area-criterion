@@ -1,0 +1,107 @@
+{
+  "name": "branch_2_case_by_case",
+  "root": {
+    "id": 0,
+    "name": "CCI 1",
+    "type": "CriticalClustersIdentifier",
+    "configuration": {
+      "identifier_type": "DFT",
+      "during_fault_identification_time_step": 200
+    },
+    "children": [
+      {
+        "id": 1,
+        "name": "CCE 1",
+        "type": "CriticalClustersEvaluator",
+        "configuration": {
+          "evaluation_sequence": {
+            "nodes": [
+              {
+                "id": 11,
+                "name": "CCE 1 - OMIB",
+                "type": "OMIB",
+                "configuration": {
+                  "omib_type": "ZOOMIB"
+                }
+              },
+              {
+                "id": 12,
+                "name": "CCE 1 - EAC",
+                "type": "EAC",
+                "configuration": {
+                  "angle_increment": 0.5,
+                  "max_integration_angle": 270
+                }
+              },
+              {
+                "id": 13,
+                "name": "CCE 1 - OTC",
+                "type": "OMIBTrajectoryCalculator",
+                "configuration": {
+                  "calculator_type": "TAYL",
+                  "critical_angle_shift": 3
+                }
+              }
+            ]
+          }
+        },
+        "children": [
+          {
+            "id": 2,
+            "name": "CCS 1",
+            "type": "CriticalClusterSelector",
+            "configuration": {
+              "display_report": true,
+              "selector_type": "MIN"
+            },
+            "children": [
+              {
+                "id": 3,
+                "name": "GTC 1",
+                "type": "GeneratorTrajectoryCalculator",
+                "configuration": {
+                  "nb_during_fault_intervals": 5,
+                  "nb_post_fault_intervals": 2,
+                  "critical_time_shift": 5
+                },
+                "children": [
+                  {
+                    "id": 4,
+                    "name": "OMIB 1",
+                    "type": "OMIB",
+                    "configuration": {
+                      "omib_type": "DOMIB"
+                    },
+                    "children": [
+                      {
+                        "id": 5,
+                        "name": "EAC 1",
+                        "type": "EAC",
+                        "configuration": {
+                          "angle_increment": 0.5,
+                          "max_integration_angle": 270
+                        },
+                        "children": [
+                          {
+                            "id": 6,
+                            "name": "OTC 1",
+                            "type": "OMIBTrajectoryCalculator",
+                            "configuration": {
+                              "display_report": true,
+                              "calculator_type": "TAYL",
+                              "critical_angle_shift": 3
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

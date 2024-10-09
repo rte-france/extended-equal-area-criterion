@@ -1,0 +1,79 @@
+{
+  "ech-file": "fech.ech",
+  "dta-file":  "fdta.dta",
+  "lf-file": "fech.lf",
+  "seq-files-folder":  ".",
+  "output-dir": "deeac_output",
+  "cores": 1,
+  "island-threshold": 10,
+  "protection-delay": 15,
+  "rewrite": true,
+  "verbose": false,
+  "branch": {
+    "name": "branch_1_global",
+    "root": {
+      "id": 0,
+      "name": "CCI 1",
+      "type": "CriticalClustersIdentifier",
+      "configuration": {
+        "identifier_type": "DFT",
+        "during_fault_identification_time_step": 170,
+        "significant_angle_variation_threshold": 5,
+        "min_cluster_power": "0MW",
+        "tso_customization": "RTE",
+        "max_number_candidates": 12,
+        "never_critical_generators": [".EQV1T 1", ".EQV2T 1", ".EQV3T 1", ".EQV4T 1", ".EQV5T 1", ".EQV6T 1", ".EQV7T 1", ".EQV8T 1", ".EQV9T 1", ".EQVAT 1", ".EQVBT 1", ".EQVCT 1", ".EQVDT 1", ".EQVET 1", ".EQVFT 1"]
+      },
+      "children": [
+        {
+          "id": 1,
+          "name": "CCE 1",
+          "type": "CriticalClustersEvaluator",
+          "configuration": {
+            "evaluation_sequence": {
+              "nodes": [
+                {
+                  "id": 11,
+                  "name": "CCE 1 - OMIB",
+                  "type": "OMIB",
+                  "configuration": {
+                    "omib_type": "ZOOMIB"
+                  }
+                },
+                {
+                  "id": 12,
+                  "name": "CCE 1 - EAC",
+                  "type": "EAC",
+                  "configuration": {
+                    "angle_increment": 0.1,
+                    "max_integration_angle": 270
+                  }
+                },
+                {
+                  "id": 13,
+                  "name": "CCE 1 - OTC",
+                  "type": "OMIBTrajectoryCalculator",
+                  "configuration": {
+                    "calculator_type": "TAYL",
+                    "critical_angle_shift": 4
+                  }
+                }
+              ]
+            }
+          },
+          "children": [
+            {
+              "id": 2,
+              "name": "CCS 1",
+              "type": "CriticalClusterSelector",
+              "configuration": {
+                "selector_type": "MIN",
+                "display_report": true
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

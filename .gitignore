@@ -1,0 +1,14 @@
+/venv
+.vscode
+*.egg-info
+__pycache__
+.pytest_cache
+.DS_Store
+.eggs
+_version.py
+.coverage
+htmlcov
+*.pdf
+ofile.prof
+scripts/tree_optimization/plots/
+.idea

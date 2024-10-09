@@ -1,0 +1,9 @@
+{
+  "B-C_fault": {
+    "status": "POTENTIALLY STABLE",
+    "swing_state": "FORWARD",
+    "critical_cluster": "GEN_AT 2",
+    "node_id": 2,
+    "CCT": 0.1646937273748732
+  }
+}

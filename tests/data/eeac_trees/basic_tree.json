@@ -1,0 +1,61 @@
+{
+    "name": "Basic tree",
+    "root": {
+        "id": 0,
+        "name": "Root node",
+        "type":  "CriticalClustersIdentifier",
+        "configuration": {
+            "identifier_type": "ACC",
+            "threshold": 0.5,
+            "max_number_candidates": 1
+        },
+        "children": [
+            {
+                "id": 1,
+                "name": "Basic CC Evaluator",
+                "type":  "CriticalClustersEvaluator",
+                "configuration": {
+                    "evaluation_sequence": {
+                        "nodes": [
+                            {
+                                "id": 11,
+                                "name": "Basic CC Evaluator - OMIB",
+                                "type":  "OMIB",
+                                "configuration": {
+                                    "omib_type": "ZOOMIB"
+                                }
+                            },
+                            {
+                                "id": 12,
+                                "name": "Basic CC Evaluator - EAC",
+                                "type":  "EAC",
+                                "configuration": {
+                                    "angle_increment": 1.8,
+                                    "max_integration_angle": 360 
+                                }
+                            },
+                            {
+                                "id": 13,
+                                "name": "Basic CC Evaluator - OMIB Trajectory Calculator",
+                                "type":  "OMIBTrajectoryCalculator",
+                                "configuration": {
+                                    "calculator_type": "TAYL"
+                                }
+                            }
+                        ]
+                    }
+                },
+                "children": [
+                    {
+                        "id": 2,
+                        "name": "MIN CC Selector",
+                        "type":  "CriticalClusterSelector",
+                        "configuration": {
+                            "selector_type": "MIN"
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+}

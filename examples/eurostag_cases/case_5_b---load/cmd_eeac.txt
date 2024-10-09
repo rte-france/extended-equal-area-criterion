@@ -1,0 +1,1 @@
+python -m deeac --rewrite -t branch_1.json -e fech_load.ech -d fdta.dta -l fech_load.lf -s B-C_fault.seq -o output_eeac -i 10 -p 15

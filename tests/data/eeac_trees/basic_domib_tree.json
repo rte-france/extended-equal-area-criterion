@@ -1,0 +1,107 @@
+{
+    "name": "Basic DOMIB tree",
+    "root": {
+        "id": 0,
+        "name": "ACC CCs Identifier",
+        "type":  "CriticalClustersIdentifier",
+        "configuration": {
+            "identifier_type": "ACC",
+            "threshold": 0.5,
+            "max_number_candidates": 1,
+            "min_cluster_power": "1000 kW",
+            "threshold_decrement": 0.2
+        },
+        "children": [
+            {
+                "id": 1,
+                "name": "Basic CC Evaluator",
+                "type":  "CriticalClustersEvaluator",
+                "configuration": {
+                    "evaluation_sequence": {
+                        "nodes": [
+                            {
+                                "id": 11,
+                                "name": "Basic CC Evaluator - ZOOMIB",
+                                "type":  "OMIB",
+                                "configuration": {
+                                    "omib_type": "ZOOMIB"
+                                }
+                            },
+                            {
+                                "id": 12,
+                                "name": "Basic CC Evaluator - EAC",
+                                "type":  "EAC",
+                                "configuration": {
+                                    "angle_increment": 1.8,
+                                    "max_integration_angle": 360 
+                                }
+                            },
+                            {
+                                "id": 13,
+                                "name": "Basic CC Evaluator - OMIB Trajectory Calculator",
+                                "type":  "OMIBTrajectoryCalculator",
+                                "configuration": {
+                                    "calculator_type": "TAYL"
+                                }
+                            }
+                        ]
+                    }
+                },
+                "children": [
+                    {
+                        "id": 2,
+                        "name": "MIN CC Selector",
+                        "type":  "CriticalClusterSelector",
+                        "configuration": {
+                            "selector_type": "MIN"
+                        },
+                        "children": [
+                            {
+                                "id": 3,
+                                "name": "Generator Trajectory Calculator",
+                                "type":  "GeneratorTrajectoryCalculator",
+                                "configuration": {
+                                    "nb_during_fault_intervals": 5,
+                                    "nb_post_fault_intervals": 5,
+                                    "critical_time_shift": 10
+                                },
+                                "children": [
+                                    {
+                                        "id": 4,
+                                        "name": "DOMIB",
+                                        "type":  "OMIB",
+                                        "configuration": {
+                                            "omib_type": "DOMIB"
+                                        },
+                                        "children": [
+                                            {
+                                                "id": 5,
+                                                "name": "DOMIB EAC",
+                                                "type":  "EAC",
+                                                "configuration": {
+                                                    "angle_increment": 1.8,
+                                                    "max_integration_angle": 360
+                                                },
+                                                "children": [
+                                                    {
+                                                        "id": 6,
+                                                        "name": "DOMIB Trajectory Calculator",
+                                                        "type":  "OMIBTrajectoryCalculator",
+                                                        "configuration": {
+                                                            "calculator_type": "TAYL",
+                                                            "critical_angle_shift": 2
+                                                        }
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+}

@@ -19,7 +19,8 @@ REQUIRES_PYTHON = '>=3.6.4'
 
 # What packages are required for this module to be executed?
 REQUIRED = [
-    "pydantic==1.9.1",
+    "pydantic==1.10.8",
+    "typing_extensions",
     "numpy>=1.19.5",
     "networkx>=2.5.1",
     "scipy>=1.5.4",

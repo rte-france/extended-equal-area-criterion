@@ -778,11 +778,17 @@ class Network:
                         ratio = element.ratio
                         phase_shift_angle = None
 
-
                     first_node_data = load_flow.transformer_nodes_data[branch.first_bus.name]
                     second_node_data = load_flow.transformer_nodes_data[branch.second_bus.name]
-                    second_bus_index = first_node_data.nodes.index(branch.second_bus.name)
-                    first_bus_index = second_node_data.nodes.index(branch.first_bus.name)
+                    second_bus_indices = [i for i, node in enumerate(first_node_data.nodes)
+                                          if node == branch.second_bus.name and first_node_data.parallel_ids[
+                                              i] == parallel_id]
+
+                    first_bus_indices = [i for i, node in enumerate(second_node_data.nodes)
+                                         if node == branch.first_bus.name and second_node_data.parallel_ids[
+                                             i] == parallel_id]
+                    second_bus_index = second_bus_indices[0]
+                    first_bus_index = first_bus_indices[0]
 
                     resistance = first_node_data.resistances[second_bus_index]
                     if resistance != second_node_data.resistances[first_bus_index]:

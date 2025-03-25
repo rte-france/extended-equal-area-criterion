@@ -53,15 +53,7 @@ class UploadCommand(Command):
     def run(self):
         self.status('Building Source distribution…')
         os.system('{0} setup.py sdist'.format(sys.executable))
-
-        self.status('Uploading the package to PyPI via Twine…')
-        rc = os.system(
-            'twine upload '
-            '--repository-url https://priv.blacklight-analytics.com:8001/simple/ '
-            'dist/*'
-        )
-
-        sys.exit(rc)
+        sys.exit(0)
 
 
 setup(
@@ -73,13 +65,17 @@ setup(
     extras_require=EXTRA_REQUIRED,
     include_package_data=True,
     zip_safe=False,
-    license='Proprietary',
+    license='MPL-2.0',
     classifiers=[
         # Trove classifiers
         'License :: Other/Proprietary License',
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.7'
+        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10'
     ],
     cmdclass={
         'upload': UploadCommand,
@@ -88,6 +84,5 @@ setup(
     use_scm_version={
         'local_scheme': lambda *_: "",  # do not prepend dirty-related tag to version
         'write_to': os.path.join('./', PACKAGE.replace(".", "/"), "_version.py")
-    },
-    setup_requires=['setuptools_scm']
+    }
 )

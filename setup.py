@@ -19,7 +19,8 @@ REQUIRES_PYTHON = '>=3.6.4'
 
 # What packages are required for this module to be executed?
 REQUIRED = [
-    "pydantic==1.9.1",
+    "pydantic==1.10.8",
+    "typing_extensions",
     "numpy>=1.19.5",
     "networkx>=2.5.1",
     "scipy>=1.5.4",
@@ -53,7 +54,15 @@ class UploadCommand(Command):
     def run(self):
         self.status('Building Source distribution…')
         os.system('{0} setup.py sdist'.format(sys.executable))
-        sys.exit(0)
+
+        self.status('Uploading the package to PyPI via Twine…')
+        rc = os.system(
+            'twine upload '
+            '--repository-url https://priv.blacklight-analytics.com:8001/simple/ '
+            'dist/*'
+        )
+
+        sys.exit(rc)
 
 
 setup(
@@ -65,17 +74,13 @@ setup(
     extras_require=EXTRA_REQUIRED,
     include_package_data=True,
     zip_safe=False,
-    license='MPL-2.0',
+    license='Proprietary',
     classifiers=[
         # Trove classifiers
         'License :: Other/Proprietary License',
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7',
-        'Programming Language :: Python :: 3.8',
-        'Programming Language :: Python :: 3.9',
-        'Programming Language :: Python :: 3.10'
+        'Programming Language :: Python :: 3.7'
     ],
     cmdclass={
         'upload': UploadCommand,
@@ -84,5 +89,6 @@ setup(
     use_scm_version={
         'local_scheme': lambda *_: "",  # do not prepend dirty-related tag to version
         'write_to': os.path.join('./', PACKAGE.replace(".", "/"), "_version.py")
-    }
+    },
+    setup_requires=['setuptools_scm']
 )

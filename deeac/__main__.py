@@ -152,13 +152,13 @@ def deeac(argv):
 
                 for n in range(n_pools):
                     with get_context("spawn").Pool(cores) as pool:
-                        min_job = n * cores
+                        min_job = n * cores + 1
                         max_job = (n + 1) * cores
                         if max_job < n_jobs:
-                            print(f"Jobs {min_job + 1} to {max_job + 1} / {n_jobs}")
+                            print(f"Jobs {min_job} to {max_job} / {n_jobs}")
                             critical_results.update(pool.starmap(run_parallel_fault, zipped_data[min_job:max_job]))
                         else:
-                            print(f"Jobs {min_job + 1} to {n_jobs} / {n_jobs}")
+                            print(f"Jobs {min_job} to {n_jobs} / {n_jobs}")
                             critical_results.update(pool.starmap(run_parallel_fault, zipped_data[min_job:]))
 
         formatted_critical_results = dict()

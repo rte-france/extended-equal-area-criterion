@@ -21,7 +21,7 @@ REQUIRES_PYTHON = '>=3.6.4'
 REQUIRED = [
     "pydantic==1.10.8",
     "typing_extensions",
-    "numpy>=1.19.5",
+    "numpy==1.24.4",
     "networkx>=2.5.1",
     "scipy>=1.5.4",
     "matplotlib>=3.3.4"

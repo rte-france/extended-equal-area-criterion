@@ -81,10 +81,7 @@ class Network:
         }
 
         # Get generators to avoid expensive operations
-        self._generators = []
-        for bus in buses:
-            for generator in bus.generators:
-                self.generators.append(generator)
+        self._generators = [generator for bus in buses for generator in bus.generators]
 
         # Create bus coupling map
         self._bus_coupling_map = self._build_bus_coupling_map()
@@ -186,11 +183,7 @@ class Network:
 
         :return: The list of loads.
         """
-        loads = []
-        for bus in self.buses:
-            for load in bus.loads:
-                loads.append(load)
-        return loads
+        return [load for bus in self.buses for load in bus.loads]
 
     @property
     def capacitor_banks(self) -> List[CapacitorBank]:
@@ -199,11 +192,7 @@ class Network:
 
         :return: The list of capacitor banks.
         """
-        capacitor_banks = []
-        for bus in self.buses:
-            for bank in bus.capacitor_banks:
-                capacitor_banks.append(bank)
-        return capacitor_banks
+        return [bank for bus in self.buses for bank in bus.capacitor_banks]
 
     @property
     def breakers(self) -> List[ParallelBreakers]:

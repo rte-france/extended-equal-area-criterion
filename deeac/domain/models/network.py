@@ -565,16 +565,8 @@ class Network:
                     Load(
                         name=load.name,
                         bus=bus,
-                        active_power=Value(
-                            value=Value.from_dto(load_data.active_power).to_unit(Unit.MW),
-                            unit=Unit.MW,
-                            base=PUBase(value=base_power, unit=Unit.MW)
-                        ),
-                        reactive_power=Value(
-                            value=Value.from_dto(load_data.reactive_power).to_unit(Unit.MVAR),
-                            unit=Unit.MVAR,
-                            base=PUBase(value=base_power, unit=Unit.MVAR)
-                        ),
+                        active_power_pu=Value.from_dto(load_data.active_power).to_unit(Unit.MW) / base_power,
+                        reactive_power_pu=Value.from_dto(load_data.reactive_power).to_unit(Unit.MVAR) / base_power,
                         connected=load.connected
                     )
                 )
@@ -588,8 +580,8 @@ class Network:
                     CapacitorBank(
                         name=bank.name,
                         bus=bus,
-                        active_power=Value.from_dto(bank.active_power).to_unit(Unit.MW) / base_power,
-                        reactive_power=-1 * Value.from_dto(bank.reactive_power).to_unit(Unit.MVAR) / base_power
+                        active_power_pu=Value.from_dto(bank.active_power).to_unit(Unit.MW) / base_power,
+                        reactive_power_pu=-1 * Value.from_dto(bank.reactive_power).to_unit(Unit.MVAR) / base_power
                     )
                 )
 
@@ -613,8 +605,8 @@ class Network:
                     CapacitorBank(
                         name=svc.name,
                         bus=bus,
-                        active_power=0,
-                        reactive_power=reactive_power
+                        active_power_pu=0,
+                        reactive_power_pu=reactive_power
                     )
                 )
 
@@ -626,34 +618,26 @@ class Network:
                     load_flow_hvdc_converter = load_flow.hvdc_converters[hvdc_converter.name]
                     active_power_dto = load_flow_hvdc_converter.active_power
                     active_power_dto.value = -active_power_dto.value
-                    active_power=Value(
-                        value=Value.from_dto(active_power_dto).to_unit(Unit.MW),
-                        unit=Unit.MW,
-                        base=PUBase(value=base_power, unit=Unit.MW)
-                    )
+                    active_power = Value.from_dto(active_power_dto).to_unit(Unit.MW) / base_power
                     reactive_power_dto = load_flow_hvdc_converter.reactive_power
                     reactive_power_dto.value = -reactive_power_dto.value
-                    reactive_power = Value(
-                        value=Value.from_dto(reactive_power_dto).to_unit(Unit.MVAR),
-                        unit=Unit.MVAR,
-                        base=PUBase(value=base_power, unit=Unit.MVAR)
-                    )
+                    reactive_power = Value.from_dto(reactive_power_dto).to_unit(Unit.MVAR) / base_power
                 except KeyError:
                     if hvdc_converter.connected:
                         # HVDC converter must be found in the load flow results
                         raise LoadFlowException(hvdc_converter.name, topology_dtos.HVDCConverter.__name__)
                     else:
                         # HVDC converter is disconnected
-                        active_power = Value(value=0, unit=Unit.MW, base=PUBase(value=base_power, unit=Unit.MW))
-                        reactive_power = Value(value=0, unit=Unit.MVAR, base=PUBase(value=base_power, unit=Unit.MVAR))
+                        active_power = 0
+                        reactive_power = 0
                 # Get bus connected to converter
                 bus = get_element(hvdc_converter.bus.name, buses, Bus.__name__)
                 bus.add_load(
                     Load(
                         name=hvdc_converter.name,
                         bus=bus,
-                        active_power=active_power,
-                        reactive_power=reactive_power,
+                        active_power_pu=active_power,
+                        reactive_power_pu=reactive_power,
                         connected=hvdc_converter.connected
                     )
                 )

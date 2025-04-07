@@ -10,8 +10,6 @@
 from typing import TYPE_CHECKING
 import numpy as np
 
-from .value import Value
-from .unit import Unit
 if TYPE_CHECKING:
     from .bus import Bus
 
@@ -21,20 +19,20 @@ class Load:
     Load in a network.
     """
 
-    def __init__(self, name: str, bus: 'Bus', active_power: Value, reactive_power: Value, connected: bool = True):
+    def __init__(self, name: str, bus: 'Bus', active_power_pu: float, reactive_power_pu: float, connected: bool = True):
         """
         Initialize a load.
 
         :param name: Name of the load.
         :param bus: Bus to which the load is connected.
-        :param active_power: Active power at the load.
-        :param reactive_power: Reactive power at the load.
+        :param active_power_pu: Active power at the load.
+        :param reactive_power_pu: Reactive power at the load.
         :param connected: True if the load is connected to the network, False othetwise.
         """
         self.name = name
         self._bus = bus
-        self._active_power = active_power
-        self._reactive_power = reactive_power
+        self._active_power_pu = active_power_pu
+        self._reactive_power_pu = reactive_power_pu
         self.connected = connected
 
         # Compute properties
@@ -57,25 +55,25 @@ class Load:
             # Bus not connected to the network.
             self._admittance = 0j
         else:
-            self._admittance = np.conj(self.complex_power) / self.bus.voltage_magnitude_pu ** 2
+            self._admittance = np.conj(self.complex_power_pu) / self.bus.voltage_magnitude_pu ** 2
 
     @property
-    def active_power_value(self) -> float:
+    def active_power_value_pu(self) -> float:
         """
         Return the active power value.
 
         :return: The active power in MW.
         """
-        return self._active_power.value
+        return self._active_power_pu
 
     @property
-    def complex_power(self) -> complex:
+    def complex_power_pu(self) -> complex:
         """
         Complex power of this load.
 
         :return: Complex power
         """
-        return complex(self._active_power.per_unit, self._reactive_power.per_unit) if self.connected else 0j
+        return complex(self._active_power_pu, self._reactive_power_pu) if self.connected else 0j
 
     @property
     def admittance(self) -> complex:
@@ -121,8 +119,8 @@ class FictiveLoad(Load):
         super().__init__(
             name=name,
             bus=bus,
-            active_power=Value(0, Unit.MW),
-            reactive_power=Value(0, Unit.MVAR),
+            active_power_pu=0,
+            reactive_power_pu=0,
             connected=connected
         )
         self._admittance = admittance

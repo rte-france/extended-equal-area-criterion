@@ -50,7 +50,7 @@ class CapacitorBank:
         """
         Compute the admittance of this capacitor bank.
         """
-        bus_voltage_magnitude = self.bus.voltage_magnitude.per_unit
+        bus_voltage_magnitude = self.bus.voltage_magnitude_pu
         if bus_voltage_magnitude == 0j:
             # Admittance is infinite
             self._admittance = complex(np.inf, np.NINF)

@@ -42,7 +42,7 @@ class Bus:
 
         :param name: Name of the bus.
         :param base_voltage: Base voltage for per unit conversions. Unit: kV.
-        :param voltage_magnitude: Voltage magnitude at the bus.
+        :param voltage_magnitude: Voltage magnitude at the bus. Unit: kV.
         :param phase_angle: Phase angle at the bus. Unit: rad.
         :param type: Type of the bus. If None, the type is derived from the connected generators.
         """
@@ -54,6 +54,7 @@ class Bus:
         self.base_voltage = base_voltage
         self._type = type
         self._voltage_magnitude = voltage_magnitude
+        self._voltage_magnitude_pu = voltage_magnitude / base_voltage
         self._phase_angle = phase_angle
         self._voltage = None
 
@@ -95,12 +96,12 @@ class Bus:
             if self._voltage_magnitude is None or self._phase_angle is None:
                 raise BusVoltageException(self.name)
             self._voltage = cmath.rect(
-                self._voltage_magnitude.per_unit,
+                self._voltage_magnitude_pu,
                 self._phase_angle
             )
         return self._voltage
 
-    def update_voltage(self, voltage_magnitude: Value, phase_angle: float):
+    def update_voltage(self, voltage_magnitude: float, phase_angle: float):
         """
         Update bus voltage.
 
@@ -108,6 +109,7 @@ class Bus:
         :param phase_angle: New phase angle.
         """
         self._voltage_magnitude = voltage_magnitude
+        self._voltage_magnitude_pu = voltage_magnitude / self.base_voltage
         self._phase_angle = phase_angle
         self._voltage = None
         for generator in self.generators:
@@ -121,13 +123,22 @@ class Bus:
             bank.compute_admittance()
 
     @property
-    def voltage_magnitude(self) -> Value:
+    def voltage_magnitude(self) -> float:
         """
         Return the voltage magnitude of this bus.
 
         :return: The voltage magnitude.
         """
         return self._voltage_magnitude
+
+    @property
+    def voltage_magnitude_pu(self) -> float:
+        """
+        Return the voltage magnitude in pu of this bus.
+
+        :return: The voltage magnitude in pu.
+        """
+        return self._voltage_magnitude_pu
 
     @property
     def phase_angle(self) -> float:
@@ -221,11 +232,7 @@ class Bus:
             raise CoupledBusesException(self.name, bus.name)
         else:
             # Copy voltages and names
-            voltage_magnitude = Value(
-                value=bus.voltage_magnitude.value,
-                unit=bus.voltage_magnitude.unit,
-                base=PUBase(bus.voltage_magnitude.base.value, bus.voltage_magnitude.base.unit)
-            )
+            voltage_magnitude = bus.voltage_magnitude
             phase_angle = bus.phase_angle
             self.update_voltage(voltage_magnitude, phase_angle)
             self.base_voltage = bus.base_voltage

@@ -57,7 +57,7 @@ class Load:
             # Bus not connected to the network.
             self._admittance = 0j
         else:
-            self._admittance = np.conj(self.complex_power) / self.bus.voltage_magnitude.per_unit ** 2
+            self._admittance = np.conj(self.complex_power) / self.bus.voltage_magnitude_pu ** 2
 
     @property
     def active_power_value(self) -> float:

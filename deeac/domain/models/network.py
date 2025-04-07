@@ -397,11 +397,7 @@ class Network:
                     # Get load flow results for this bus
                     load_flow_bus = load_flow.buses[bus.name]
                     # Bus voltage obtained from load flow
-                    voltage_magnitude = Value(
-                        value=Value.from_dto(load_flow_bus.voltage).to_unit(Unit.KV),
-                        unit=Unit.KV,
-                        base=PUBase(value=base_voltage, unit=Unit.KV)
-                    )
+                    voltage_magnitude = Value.from_dto(load_flow_bus.voltage).to_unit(Unit.KV)
                     if type(bus) == topology_dtos.SlackBus:
                         # Phase angle of slack bus in static data
                         phase_angle = Value.from_dto(bus.phase_angle).to_unit(Unit.RAD)
@@ -416,7 +412,7 @@ class Network:
                         # Slack bus must have load flow results
                         raise LoadFlowException(bus.name, Bus.__name__)
                     # Bus is probably disconnected
-                    voltage_magnitude = Value(value=0, unit=Unit.KV, base=PUBase(value=base_voltage, unit=Unit.KV))
+                    voltage_magnitude = 0
                     phase_angle = 0
                     bus_type = None
 
@@ -1017,7 +1013,7 @@ class Network:
                 fictive_generator_bus = Bus(
                     name=f"INTERNAL_VOLTAGE_{generator.name}",
                     base_voltage=base_voltage,
-                    voltage_magnitude=Value(voltage_magnitude, Unit.KV, PUBase(base_voltage, Unit.KV)),
+                    voltage_magnitude=voltage_magnitude,
                     phase_angle=phase_angle,
                     type=BusType.GEN_INT_VOLT
                 )

@@ -7,8 +7,6 @@
 # SPDX-License-Identifier: MPL-2.0
 # This file is part of the deeac project.
 
-from .value import Value
-
 
 class Line:
     """
@@ -16,7 +14,8 @@ class Line:
     """
 
     def __init__(
-        self, resistance: Value, reactance: Value, shunt_conductance: Value, shunt_susceptance: Value,
+        self, resistance: float, reactance: float, shunt_conductance: float, shunt_susceptance: float,
+        base_impedance,
         closed_at_first_bus: bool = True, closed_at_second_bus: bool = True
     ):
         """
@@ -29,10 +28,11 @@ class Line:
         :param closed_at_first_bus: True if the line is closed at the first bus, False otherwise.
         :param closed_at_second_bus: True if the line is closed at the second bus, False otherwise.
         """
-        self._resistance = resistance
-        self._reactance = reactance
-        self._shunt_conductance = shunt_conductance
-        self._shunt_susceptance = shunt_susceptance
+        self._resistance_pu = resistance / base_impedance
+        self._reactance_pu = reactance / base_impedance
+        self._shunt_conductance_pu = shunt_conductance * base_impedance
+        self._shunt_susceptance_pu = shunt_susceptance * base_impedance
+        self._base_impedance = base_impedance
         self.closed_at_first_bus = closed_at_first_bus
         self.closed_at_second_bus = closed_at_second_bus
         self.metal_short_circuited = False
@@ -66,28 +66,64 @@ class Line:
         return not self.metal_short_circuited and (self.closed_at_first_bus ^ self.closed_at_second_bus)
 
     @property
-    def impedance(self) -> complex:
+    def impedance_pu(self) -> complex:
         """
         Line impedance
 
         :return: Line impedance (per unit)
         """
-        return complex(self._resistance.per_unit, self._reactance.per_unit)
+        return complex(self._resistance_pu, self._reactance_pu)
 
     @property
-    def admittance(self) -> complex:
+    def admittance_pu(self) -> complex:
         """
         Line admittance
 
         :return: Line admittance (per unit)
         """
-        return 1 / self.impedance
+        return 1 / self.impedance_pu
 
     @property
-    def shunt_admittance(self) -> complex:
+    def shunt_admittance_pu(self) -> complex:
         """
         Line shunt admittance.
 
         :return: Shunt admittance of the line (per unit)
         """
-        return complex(self._shunt_conductance.per_unit, self._shunt_susceptance.per_unit)
+        return complex(self._shunt_conductance_pu, self._shunt_susceptance_pu)
+
+    @property
+    def _resistance(self) -> float:
+        """
+        Line resistance
+
+        :return: Line resistance (Ohm)
+        """
+        return self._resistance_pu * self._base_impedance
+
+    @property
+    def _reactance(self) -> float:
+        """
+        Line reactance
+
+        :return: Line resistance (Ohm)
+        """
+        return self._reactance_pu * self._base_impedance
+
+    @property
+    def _shunt_conductance(self) -> float:
+        """
+        Line shunt conductance
+
+        :return: Line shunt conductance (S)
+        """
+        return self._shunt_conductance_pu / self._base_impedance
+
+    @property
+    def _shunt_susceptance(self) -> float:
+        """
+        Line shunt susceptance
+
+        :return: Line shunt susceptance (S)
+        """
+        return self._shunt_susceptance_pu / self._base_impedance

@@ -117,7 +117,7 @@ class LineShortCircuitEvent(FailureEvent):
             fault_position = 1 - self.fault_position
 
         # Get line admittance
-        line_admittance = line.admittance
+        line_admittance = line.admittance_pu
 
         # Add fictive load on first bus
         if line.closed_at_first_bus:

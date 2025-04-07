@@ -131,9 +131,9 @@ class AdmittanceMatrix(BusMatrix):
                                 admittance_sum_i += admittance + receiving_shunt_admittance
 
                     elif isinstance(element, Line) is True:
-                        admittance_with_shunt = element.admittance + element.shunt_admittance / 2
-                        branch_admittance_j += element.admittance
-                        branch_admittance_i += element.admittance
+                        admittance_with_shunt = element.admittance_pu + element.shunt_admittance_pu / 2
+                        branch_admittance_j += element.admittance_pu
+                        branch_admittance_i += element.admittance_pu
                         admittance_sum_i += admittance_with_shunt
                         admittance_sum_j += admittance_with_shunt
                     else:

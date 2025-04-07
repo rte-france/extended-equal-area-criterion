@@ -4,7 +4,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, you can obtain one at http://mozilla.org/MPL/2.0/.
-# SPDX-License-Identifier: MPL-2.0
+# SPDX-License-Identifier: MPL-2.0f
 # This file is part of the deeac project.
 
 from cmath import phase, pi
@@ -674,32 +674,14 @@ class Network:
                     # Compute base for per unit conversions
                     sending_bus_base_voltage = first_bus.base_voltage
                     receiving_bus_base_voltage = second_bus.base_voltage
-                    base_resistance = sending_bus_base_voltage * receiving_bus_base_voltage / base_power
-                    pu_base_resistance = PUBase(value=base_resistance, unit=Unit.OHM)
-                    pu_base_conductance = PUBase(value=1 / base_resistance, unit=Unit.S)
-
+                    base_impedance = sending_bus_base_voltage * receiving_bus_base_voltage / base_power
                     # Create line model
                     branch[parallel_id] = Line(
-                        resistance=Value(
-                            value=Value.from_dto(element.resistance).to_unit(Unit.OHM),
-                            unit=Unit.OHM,
-                            base=pu_base_resistance
-                        ),
-                        reactance=Value(
-                            value=Value.from_dto(element.reactance).to_unit(Unit.OHM),
-                            unit=Unit.OHM,
-                            base=pu_base_resistance
-                        ),
-                        shunt_conductance=Value(
-                            value=Value.from_dto(element.shunt_conductance).to_unit(Unit.S),
-                            unit=Unit.S,
-                            base=pu_base_conductance
-                        ),
-                        shunt_susceptance=Value(
-                            value=Value.from_dto(element.shunt_susceptance).to_unit(Unit.S),
-                            unit=Unit.S,
-                            base=pu_base_conductance
-                        ),
+                        resistance=Value.from_dto(element.resistance).to_unit(Unit.OHM),
+                        reactance=Value.from_dto(element.reactance).to_unit(Unit.OHM),
+                        shunt_conductance=Value.from_dto(element.shunt_conductance).to_unit(Unit.S),
+                        shunt_susceptance=Value.from_dto(element.shunt_susceptance).to_unit(Unit.S),
+                        base_impedance=base_impedance,
                         closed_at_first_bus=element.closed_at_sending_bus,
                         closed_at_second_bus=element.closed_at_receiving_bus
                     )
@@ -995,17 +977,13 @@ class Network:
                 # Create a branch between fictive and real buses with a single line whose reactance if the generator
                 # direct transient reactance
                 base_impedance = base_voltage ** 2 / network.base_power.to_unit(Unit.MVA)
-                base_admittance = 1 / base_impedance
                 branch = Branch(fictive_generator_bus, bus)
                 fictive_generator_line = Line(
-                    resistance=Value(0, Unit.OHM, PUBase(base_impedance, Unit.OHM)),
-                    reactance=Value(
-                        generator.direct_transient_reactance * base_impedance,
-                        Unit.OHM,
-                        PUBase(base_impedance, Unit.OHM)
-                    ),
-                    shunt_conductance=Value(0, Unit.S, PUBase(base_admittance, Unit.S)),
-                    shunt_susceptance=Value(0, Unit.S, PUBase(base_admittance, Unit.S))
+                    resistance=0,
+                    reactance=generator.direct_transient_reactance * base_impedance,
+                    shunt_conductance=0,
+                    shunt_susceptance=0,
+                    base_impedance=base_impedance
                 )
                 branch["1"] = fictive_generator_line
                 fictive_generator_bus.add_branch(branch)

@@ -32,7 +32,7 @@ class Bus:
     """
 
     def __init__(
-        self, name: str, base_voltage: float, voltage_magnitude: float = None, phase_angle: float = None,
+        self, name: str, base_voltage: float, voltage_magnitude_pu: float = None, phase_angle: float = None,
         type: BusType = None
     ):
         """
@@ -40,7 +40,7 @@ class Bus:
 
         :param name: Name of the bus.
         :param base_voltage: Base voltage for per unit conversions. Unit: kV.
-        :param voltage_magnitude: Voltage magnitude at the bus. Unit: kV.
+        :param voltage_magnitude_pu: Voltage magnitude at the bus.
         :param phase_angle: Phase angle at the bus. Unit: rad.
         :param type: Type of the bus. If None, the type is derived from the connected generators.
         """
@@ -51,7 +51,7 @@ class Bus:
         self.capacitor_banks = []
         self.base_voltage = base_voltage
         self._type = type
-        self._voltage_magnitude_pu = voltage_magnitude / base_voltage
+        self._voltage_magnitude_pu = voltage_magnitude_pu
         self._phase_angle = phase_angle
         self._voltage = None
 

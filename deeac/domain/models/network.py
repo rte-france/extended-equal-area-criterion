@@ -392,12 +392,12 @@ class Network:
             with exception_collector:
                 # Base voltage obtained from static data
                 base_voltage = Value.from_dto(bus.base_voltage).to_unit(Unit.KV)
-
                 try:
                     # Get load flow results for this bus
                     load_flow_bus = load_flow.buses[bus.name]
                     # Bus voltage obtained from load flow
                     voltage_magnitude = Value.from_dto(load_flow_bus.voltage).to_unit(Unit.KV)
+                    voltage_magnitude_pu = voltage_magnitude / base_voltage
                     if type(bus) == topology_dtos.SlackBus:
                         # Phase angle of slack bus in static data
                         phase_angle = Value.from_dto(bus.phase_angle).to_unit(Unit.RAD)
@@ -412,7 +412,7 @@ class Network:
                         # Slack bus must have load flow results
                         raise LoadFlowException(bus.name, Bus.__name__)
                     # Bus is probably disconnected
-                    voltage_magnitude = 0
+                    voltage_magnitude_pu = 0
                     phase_angle = 0
                     bus_type = None
 
@@ -420,7 +420,7 @@ class Network:
                 buses[bus.name] = Bus(
                     name=bus.name,
                     base_voltage=base_voltage,
-                    voltage_magnitude=voltage_magnitude,
+                    voltage_magnitude_pu=voltage_magnitude_pu,
                     phase_angle=phase_angle,
                     type=bus_type
                 )
@@ -1008,12 +1008,12 @@ class Network:
                 # Create fictive bus for the generator
                 base_voltage = bus.base_voltage
                 internal_voltage = generator.internal_voltage
-                voltage_magnitude = abs(internal_voltage) * base_voltage
+                voltage_magnitude_pu = abs(internal_voltage)
                 phase_angle = phase(internal_voltage)
                 fictive_generator_bus = Bus(
                     name=f"INTERNAL_VOLTAGE_{generator.name}",
                     base_voltage=base_voltage,
-                    voltage_magnitude=voltage_magnitude,
+                    voltage_magnitude_pu=voltage_magnitude_pu,
                     phase_angle=phase_angle,
                     type=BusType.GEN_INT_VOLT
                 )

@@ -426,7 +426,7 @@ class Network:
                 # Generate model
                 buses[bus.name] = Bus(
                     name=bus.name,
-                    base_voltage=Value(value=base_voltage, unit=Unit.KV),
+                    base_voltage=base_voltage,
                     voltage_magnitude=voltage_magnitude,
                     phase_angle=phase_angle,
                     type=bus_type
@@ -446,7 +446,7 @@ class Network:
                 else:
                     generator_type = GeneratorType.PV if generator.regulating else GeneratorType.PQ
                 # Compute base voltage and resistance for per unit conversions
-                base_voltage = bus.base_voltage.value
+                base_voltage = bus.base_voltage
                 pu_base_voltage = PUBase(value=base_voltage, unit=Unit.KV)
                 base_resistance = base_voltage ** 2 / base_power
                 pu_base_resistance = PUBase(value=base_resistance, unit=Unit.OHM)
@@ -707,8 +707,8 @@ class Network:
                 elif element_type == topology_dtos.Line:
                     # Line
                     # Compute base for per unit conversions
-                    sending_bus_base_voltage = first_bus.base_voltage.value
-                    receiving_bus_base_voltage = second_bus.base_voltage.value
+                    sending_bus_base_voltage = first_bus.base_voltage
+                    receiving_bus_base_voltage = second_bus.base_voltage
                     base_resistance = sending_bus_base_voltage * receiving_bus_base_voltage / base_power
                     pu_base_resistance = PUBase(value=base_resistance, unit=Unit.OHM)
                     pu_base_conductance = PUBase(value=1 / base_resistance, unit=Unit.S)
@@ -759,8 +759,8 @@ class Network:
                         tap_index = tap_data.tap_numbers.index(element.initial_tap_number)
                         sending_node_voltage = tap_data.sending_node_voltages[tap_index]
                         receiving_node_voltage = tap_data.receiving_node_voltages[tap_index]
-                        ratio = (branch.first_bus.base_voltage.value / sending_node_voltage) \
-                                * (receiving_node_voltage / branch.second_bus.base_voltage.value)
+                        ratio = (branch.first_bus.base_voltage / sending_node_voltage) \
+                                * (receiving_node_voltage / branch.second_bus.base_voltage)
                         phase_shift_angle = Value(value=tap_data.phase_angles[tap_index], unit=Unit.DEG)
                     else:
                         transformer_type = 1
@@ -1013,13 +1013,13 @@ class Network:
                     # Consider only connected generators that are not already connected to a fictive bus
                     continue
                 # Create fictive bus for the generator
-                base_voltage = bus.base_voltage.to_unit(Unit.KV)
+                base_voltage = bus.base_voltage
                 internal_voltage = generator.internal_voltage
                 voltage_magnitude = abs(internal_voltage) * base_voltage
                 phase_angle = phase(internal_voltage) * 180 / pi
                 fictive_generator_bus = Bus(
                     name=f"INTERNAL_VOLTAGE_{generator.name}",
-                    base_voltage=Value(base_voltage, Unit.KV),
+                    base_voltage=base_voltage,
                     voltage_magnitude=Value(voltage_magnitude, Unit.KV, PUBase(base_voltage, Unit.KV)),
                     phase_angle=Value(phase_angle, Unit.DEG),
                     type=BusType.GEN_INT_VOLT

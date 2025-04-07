@@ -34,14 +34,14 @@ class Bus:
     """
 
     def __init__(
-        self, name: str, base_voltage: Value, voltage_magnitude: Value = None, phase_angle: Value = None,
+        self, name: str, base_voltage: float, voltage_magnitude: Value = None, phase_angle: Value = None,
         type: BusType = None
     ):
         """
         Initialize a bus.
 
         :param name: Name of the bus.
-        :param name: Base voltage for per unit conversions.
+        :param base_voltage: Base voltage for per unit conversions. Unit: kV.
         :param voltage_magnitude: Voltage magnitude at the bus.
         :param phase_angle: Phase angle at the bus.
         :param type: Type of the bus. If None, the type is derived from the connected generators.
@@ -228,7 +228,7 @@ class Bus:
             )
             phase_angle = Value(value=bus.phase_angle.value, unit=bus.phase_angle.unit)
             self.update_voltage(voltage_magnitude, phase_angle)
-            self.base_voltage = Value(value=bus.base_voltage.value, unit=bus.base_voltage.unit)
+            self.base_voltage = bus.base_voltage
             self.name = f"{self.name}_{bus.name}"
 
         # Add connected elements and check if slack bus

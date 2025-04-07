@@ -404,14 +404,11 @@ class Network:
                     )
                     if type(bus) == topology_dtos.SlackBus:
                         # Phase angle of slack bus in static data
-                        phase_angle = Value(value=Value.from_dto(bus.phase_angle).to_unit(Unit.DEG), unit=Unit.DEG)
+                        phase_angle = Value.from_dto(bus.phase_angle).to_unit(Unit.RAD)
                         bus_type = BusType.SLACK
                     else:
                         # Phase angle from load flow
-                        phase_angle = Value(
-                            value=Value.from_dto(load_flow_bus.phase_angle).to_unit(Unit.DEG),
-                            unit=Unit.DEG
-                        )
+                        phase_angle = Value.from_dto(load_flow_bus.phase_angle).to_unit(Unit.RAD)
                         bus_type = None
                 except KeyError:
                     # No load flow data for this bus
@@ -420,7 +417,7 @@ class Network:
                         raise LoadFlowException(bus.name, Bus.__name__)
                     # Bus is probably disconnected
                     voltage_magnitude = Value(value=0, unit=Unit.KV, base=PUBase(value=base_voltage, unit=Unit.KV))
-                    phase_angle = Value(value=0, unit=Unit.DEG)
+                    phase_angle = 0
                     bus_type = None
 
                 # Generate model
@@ -1016,12 +1013,12 @@ class Network:
                 base_voltage = bus.base_voltage
                 internal_voltage = generator.internal_voltage
                 voltage_magnitude = abs(internal_voltage) * base_voltage
-                phase_angle = phase(internal_voltage) * 180 / pi
+                phase_angle = phase(internal_voltage)
                 fictive_generator_bus = Bus(
                     name=f"INTERNAL_VOLTAGE_{generator.name}",
                     base_voltage=base_voltage,
                     voltage_magnitude=Value(voltage_magnitude, Unit.KV, PUBase(base_voltage, Unit.KV)),
-                    phase_angle=Value(phase_angle, Unit.DEG),
+                    phase_angle=phase_angle,
                     type=BusType.GEN_INT_VOLT
                 )
                 fictive_generator_bus.add_generator(generator)

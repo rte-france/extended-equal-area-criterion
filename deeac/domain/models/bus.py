@@ -34,7 +34,7 @@ class Bus:
     """
 
     def __init__(
-        self, name: str, base_voltage: float, voltage_magnitude: Value = None, phase_angle: Value = None,
+        self, name: str, base_voltage: float, voltage_magnitude: Value = None, phase_angle: float = None,
         type: BusType = None
     ):
         """
@@ -43,7 +43,7 @@ class Bus:
         :param name: Name of the bus.
         :param base_voltage: Base voltage for per unit conversions. Unit: kV.
         :param voltage_magnitude: Voltage magnitude at the bus.
-        :param phase_angle: Phase angle at the bus.
+        :param phase_angle: Phase angle at the bus. Unit: rad.
         :param type: Type of the bus. If None, the type is derived from the connected generators.
         """
         self.name = name
@@ -96,11 +96,11 @@ class Bus:
                 raise BusVoltageException(self.name)
             self._voltage = cmath.rect(
                 self._voltage_magnitude.per_unit,
-                np.deg2rad(self._phase_angle.to_unit(Unit.DEG))
+                self._phase_angle
             )
         return self._voltage
 
-    def update_voltage(self, voltage_magnitude: Value, phase_angle: Value):
+    def update_voltage(self, voltage_magnitude: Value, phase_angle: float):
         """
         Update bus voltage.
 
@@ -130,7 +130,7 @@ class Bus:
         return self._voltage_magnitude
 
     @property
-    def phase_angle(self) -> Value:
+    def phase_angle(self) -> float:
         """
         Return the phase angle of this bus.
 
@@ -226,7 +226,7 @@ class Bus:
                 unit=bus.voltage_magnitude.unit,
                 base=PUBase(bus.voltage_magnitude.base.value, bus.voltage_magnitude.base.unit)
             )
-            phase_angle = Value(value=bus.phase_angle.value, unit=bus.phase_angle.unit)
+            phase_angle = bus.phase_angle
             self.update_voltage(voltage_magnitude, phase_angle)
             self.base_voltage = bus.base_voltage
             self.name = f"{self.name}_{bus.name}"

@@ -20,7 +20,7 @@ class CapacitorBank:
     Capacitor bank in a network.
     """
 
-    def __init__(self, name: str, bus: 'Bus', active_power: Value, reactive_power: Value):
+    def __init__(self, name: str, bus: 'Bus', active_power: float, reactive_power: float):  # TODO
         """
         Initialize a load.
 
@@ -31,8 +31,8 @@ class CapacitorBank:
         """
         self.name = name
         self._bus = bus
-        self._active_power = active_power
-        self._reactive_power = reactive_power
+        self._active_power_pu = active_power
+        self._reactive_power_pu = reactive_power
 
         # Compute properties
         self.compute_admittance()
@@ -64,7 +64,7 @@ class CapacitorBank:
 
         :return: Complex power
         """
-        return complex(self._active_power.per_unit, self._reactive_power.per_unit)
+        return complex(self._active_power_pu, self._reactive_power_pu)
 
     @property
     def admittance(self) -> complex:

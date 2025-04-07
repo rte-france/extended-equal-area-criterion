@@ -588,16 +588,8 @@ class Network:
                     CapacitorBank(
                         name=bank.name,
                         bus=bus,
-                        active_power=Value(
-                            value=Value.from_dto(bank.active_power).to_unit(Unit.MW),
-                            unit=Unit.MW,
-                            base=PUBase(value=base_power, unit=Unit.MW)
-                        ),
-                        reactive_power=Value(
-                            value=-1 * Value.from_dto(bank.reactive_power).to_unit(Unit.MVAR),
-                            unit=Unit.MVAR,
-                            base=PUBase(value=base_power, unit=Unit.MVAR)
-                        )
+                        active_power=Value.from_dto(bank.active_power).to_unit(Unit.MW) / base_power,
+                        reactive_power=-1 * Value.from_dto(bank.reactive_power).to_unit(Unit.MVAR) / base_power
                     )
                 )
 
@@ -607,25 +599,21 @@ class Network:
                 # Get reactive power from load flow results
                 try:
                     load_flow_svc = load_flow.static_var_compensators[svc.name]
-                    reactive_power = Value(
-                        value=-1 * Value.from_dto(load_flow_svc.reactive_power).to_unit(Unit.MVAR),
-                        unit=Unit.MVAR,
-                        base=PUBase(value=base_power, unit=Unit.MVAR)
-                    )
+                    reactive_power = -1 * Value.from_dto(load_flow_svc.reactive_power).to_unit(Unit.MVAR) / base_power
                 except KeyError:
                     if svc.connected:
                         # SVC must be found in the load flow results
                         raise LoadFlowException(svc.name, topology_dtos.StaticVarCompensator.__name__)
                     else:
                         # SVC is disconnected
-                        reactive_power = Value(value=0, unit=Unit.MVAR, base=PUBase(value=base_power, unit=Unit.MVAR))
+                        reactive_power = 0
                 # Get bus connected to converter
                 bus = get_element(svc.bus.name, buses, Bus.__name__)
                 bus.add_capacitor_bank(
                     CapacitorBank(
                         name=svc.name,
                         bus=bus,
-                        active_power=Value(value=0, unit=Unit.MW, base=PUBase(value=base_power, unit=Unit.MW)),
+                        active_power=0,
                         reactive_power=reactive_power
                     )
                 )

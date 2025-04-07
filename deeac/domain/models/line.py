@@ -14,8 +14,8 @@ class Line:
     """
 
     def __init__(
-        self, resistance: float, reactance: float, shunt_conductance: float, shunt_susceptance: float,
-        base_impedance,
+        self, base_impedance,
+        resistance: float, reactance: float, shunt_conductance: float, shunt_susceptance: float,
         closed_at_first_bus: bool = True, closed_at_second_bus: bool = True
     ):
         """
@@ -25,14 +25,19 @@ class Line:
         :param reactance: Reactance of the line.
         :param shunt_conductance: Shunt conductance of the line.
         :param shunt_susceptance: Shunt susceptance of the line.
+        :param base_impedance: Base impedance for pu.
         :param closed_at_first_bus: True if the line is closed at the first bus, False otherwise.
         :param closed_at_second_bus: True if the line is closed at the second bus, False otherwise.
         """
+        self._base_impedance = base_impedance
+        self._resistance = resistance
+        self._reactance = reactance
+        self._shunt_susceptance = shunt_susceptance
+        self._shunt_conductance = shunt_conductance
         self._resistance_pu = resistance / base_impedance
         self._reactance_pu = reactance / base_impedance
         self._shunt_conductance_pu = shunt_conductance * base_impedance
         self._shunt_susceptance_pu = shunt_susceptance * base_impedance
-        self._base_impedance = base_impedance
         self.closed_at_first_bus = closed_at_first_bus
         self.closed_at_second_bus = closed_at_second_bus
         self.metal_short_circuited = False
@@ -91,39 +96,3 @@ class Line:
         :return: Shunt admittance of the line (per unit)
         """
         return complex(self._shunt_conductance_pu, self._shunt_susceptance_pu)
-
-    @property
-    def _resistance(self) -> float:
-        """
-        Line resistance
-
-        :return: Line resistance (Ohm)
-        """
-        return self._resistance_pu * self._base_impedance
-
-    @property
-    def _reactance(self) -> float:
-        """
-        Line reactance
-
-        :return: Line resistance (Ohm)
-        """
-        return self._reactance_pu * self._base_impedance
-
-    @property
-    def _shunt_conductance(self) -> float:
-        """
-        Line shunt conductance
-
-        :return: Line shunt conductance (S)
-        """
-        return self._shunt_conductance_pu / self._base_impedance
-
-    @property
-    def _shunt_susceptance(self) -> float:
-        """
-        Line shunt susceptance
-
-        :return: Line shunt susceptance (S)
-        """
-        return self._shunt_susceptance_pu / self._base_impedance

@@ -677,11 +677,11 @@ class Network:
                     base_impedance = sending_bus_base_voltage * receiving_bus_base_voltage / base_power
                     # Create line model
                     branch[parallel_id] = Line(
+                        base_impedance=base_impedance,
                         resistance=Value.from_dto(element.resistance).to_unit(Unit.OHM),
                         reactance=Value.from_dto(element.reactance).to_unit(Unit.OHM),
                         shunt_conductance=Value.from_dto(element.shunt_conductance).to_unit(Unit.S),
                         shunt_susceptance=Value.from_dto(element.shunt_susceptance).to_unit(Unit.S),
-                        base_impedance=base_impedance,
                         closed_at_first_bus=element.closed_at_sending_bus,
                         closed_at_second_bus=element.closed_at_receiving_bus
                     )
@@ -739,19 +739,19 @@ class Network:
                     if first_node_data.shunt_susceptances[second_bus_index] != second_node_data.shunt_susceptances[first_bus_index]:
                         raise ValueError(f"Shunt susceptance error")
 
-                    pu_base_resistance = PUBase(value=element.base_impedance.value, unit=Unit.OHM)
-                    resistance = float(resistance) * pu_base_resistance.value
-                    reactance = float(reactance) * pu_base_resistance.value
-                    pu_base_admittance = PUBase(value=element.base_impedance.value ** -1, unit=Unit.S)
-                    shunt_conductance = float(shunt_conductance) * pu_base_admittance.value
-                    shunt_susceptance = float(shunt_susceptance) * pu_base_admittance.value
+                    base_impedance = PUBase(value=element.base_impedance.value, unit=Unit.OHM).value
+                    resistance = float(resistance) * base_impedance
+                    reactance = float(reactance) * base_impedance
+                    shunt_conductance = float(shunt_conductance) / base_impedance
+                    shunt_susceptance = float(shunt_susceptance) / base_impedance
 
                     # Create transformer model
                     branch[parallel_id] = Transformer(
-                        resistance=Value(value=resistance, unit=Unit.OHM, base=pu_base_resistance),
-                        reactance=Value(value=reactance, unit=Unit.OHM, base=pu_base_resistance),
-                        shunt_conductance=Value(value=shunt_conductance, unit=Unit.S, base=pu_base_admittance),
-                        shunt_susceptance=Value(value=shunt_susceptance, unit=Unit.S, base=pu_base_admittance),
+                        base_impedance=base_impedance,
+                        resistance=resistance,
+                        reactance=reactance,
+                        shunt_conductance=shunt_conductance,
+                        shunt_susceptance=shunt_susceptance,
                         ratio=ratio,
                         phase_shift_angle=phase_shift_angle,
                         sending_node=element.sending_node,
@@ -979,11 +979,11 @@ class Network:
                 base_impedance = base_voltage ** 2 / network.base_power.to_unit(Unit.MVA)
                 branch = Branch(fictive_generator_bus, bus)
                 fictive_generator_line = Line(
+                    base_impedance=base_impedance,
                     resistance=0,
                     reactance=generator.direct_transient_reactance * base_impedance,
                     shunt_conductance=0,
-                    shunt_susceptance=0,
-                    base_impedance=base_impedance
+                    shunt_susceptance=0
                 )
                 branch["1"] = fictive_generator_line
                 fictive_generator_bus.add_branch(branch)

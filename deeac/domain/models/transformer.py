@@ -17,8 +17,10 @@ class Transformer:
     """
 
     def __init__(
-        self, resistance: Value = None, reactance: Value = None, shunt_susceptance: Value = None,
-        shunt_conductance: Value = None, phase_shift_angle: Value = None, ratio: float = None,
+        self, base_impedance = None,
+        resistance: float = None, reactance: float = None,
+        shunt_susceptance: float = None, shunt_conductance: float = None,
+        phase_shift_angle: Value = None, ratio: float = None,
         closed_at_first_bus: bool = True, closed_at_second_bus: bool = True, initial_tap_number: int = None,
         sending_node: str = None, receiving_node: str = None, transformer_type: int = None
     ):
@@ -30,6 +32,7 @@ class Transformer:
         :param reactance: Transformer reactance.
         :param shunt_susceptance: Transformer shunt susceptance.
         :param shunt_conductance: Transformer shunt conductance.
+        :param base_impedance: Base impedance for pu.
         :param phase_shift_angle: Phase shift angle associated to the tap
         :param ratio:
         :param closed_at_first_bus: True if the line is closed at the primary side, False otherwise.
@@ -38,10 +41,16 @@ class Transformer:
         :param receiving_node:
         :param transformer_type: Transformer 1 or Transformer 8
         """
+        self._base_impedance = base_impedance
         self._resistance = resistance
         self._reactance = reactance
         self._shunt_susceptance = shunt_susceptance
         self._shunt_conductance = shunt_conductance
+        self._resistance_pu = resistance / base_impedance
+        self._reactance_pu = reactance / base_impedance
+        self._shunt_susceptance_pu = shunt_susceptance * base_impedance
+        self._shunt_conductance_pu = shunt_conductance * base_impedance
+
         self._phase_shift_angle = phase_shift_angle
         self.ratio = ratio
         self.closed_at_first_bus = closed_at_first_bus
@@ -89,7 +98,7 @@ class Transformer:
         if self._resistance is None or self._reactance is None:
             # No load flow data were loaded for this transformer
             raise TransformerImpedanceException()
-        return complex(self._resistance.per_unit, self._reactance.per_unit)
+        return complex(self._resistance_pu, self._reactance_pu)
 
     @property
     def admittance(self) -> complex:
@@ -111,4 +120,4 @@ class Transformer:
         if self._resistance is None or self._reactance is None:
             # No load flow data were loaded for this transformer
             raise TransformerImpedanceException()
-        return complex(self._shunt_conductance.per_unit, -1 * self._shunt_susceptance.per_unit)
+        return complex(self._shunt_conductance_pu, -1 * self._shunt_susceptance_pu)

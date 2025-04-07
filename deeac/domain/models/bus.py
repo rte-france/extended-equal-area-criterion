@@ -32,7 +32,8 @@ class Bus:
     """
 
     def __init__(
-        self, name: str, base_voltage: float, voltage_magnitude_pu: float = None, phase_angle: float = None,
+        self, name: str, base_voltage: float,
+        voltage_magnitude: float = None, phase_angle: float = None,
         type: BusType = None
     ):
         """
@@ -51,7 +52,8 @@ class Bus:
         self.capacitor_banks = []
         self.base_voltage = base_voltage
         self._type = type
-        self._voltage_magnitude_pu = voltage_magnitude_pu
+        self._voltage_magnitude = voltage_magnitude
+        self._voltage_magnitude_pu = voltage_magnitude / base_voltage
         self._phase_angle = phase_angle
         self._voltage = None
 
@@ -98,14 +100,15 @@ class Bus:
             )
         return self._voltage
 
-    def update_voltage(self, voltage_magnitude_pu: float, phase_angle: float):
+    def update_voltage(self, voltage_magnitude: float, phase_angle: float):
         """
         Update bus voltage.
 
-        :param voltage_magnitude: New voltage magnitude.
+        :param voltage_magnitude_pu: New voltage magnitude in pu.
         :param phase_angle: New phase angle.
         """
-        self._voltage_magnitude_pu = voltage_magnitude_pu
+        self._voltage_magnitude = voltage_magnitude
+        self._voltage_magnitude_pu = voltage_magnitude / self.base_voltage
         self._phase_angle = phase_angle
         self._voltage = None
         for generator in self.generators:
@@ -118,6 +121,14 @@ class Bus:
             # Update admittance of all connected capacitor banks
             bank.compute_admittance()
 
+    @property
+    def voltage_magnitude(self) -> float:
+        """
+        Return the voltage magnitude of this bus.
+
+        :return: The voltage magnitude.
+        """
+        return self._voltage_magnitude
 
     @property
     def voltage_magnitude_pu(self) -> float:
@@ -220,9 +231,9 @@ class Bus:
             raise CoupledBusesException(self.name, bus.name)
         else:
             # Copy voltages and names
-            voltage_magnitude_pu = bus.voltage_magnitude_pu
+            voltage_magnitude = bus.voltage_magnitude
             phase_angle = bus.phase_angle
-            self.update_voltage(voltage_magnitude_pu, phase_angle)
+            self.update_voltage(voltage_magnitude, phase_angle)
             self.base_voltage = bus.base_voltage
             self.name = f"{self.name}_{bus.name}"
 

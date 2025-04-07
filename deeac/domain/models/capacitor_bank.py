@@ -19,19 +19,23 @@ class CapacitorBank:
     Capacitor bank in a network.
     """
 
-    def __init__(self, name: str, bus: 'Bus', active_power_pu: float, reactive_power_pu: float):  # TODO
+    def __init__(self, name: str, bus: 'Bus', base_power: float,
+                 active_power: float, reactive_power: float):
         """
         Initialize a load.
 
         :param name: Name of the load.
         :param bus: Bus to which the load is connected.
-        :param active_power_pu: Active power at the load.
-        :param reactive_power_pu: Reactive power at the load.
+        :param active_power: Active power at the load. Unit: MW.
+        :param reactive_power: Reactive power at the load. Unit: MVAr.
         """
         self.name = name
         self._bus = bus
-        self._active_power_pu = active_power_pu
-        self._reactive_power_pu = reactive_power_pu
+        self._base_power = base_power
+        self._active_power = active_power
+        self._reactive_power = reactive_power
+        self._active_power_pu = active_power / base_power
+        self._reactive_power_pu = reactive_power / base_power
 
         # Compute properties
         self.compute_admittance()

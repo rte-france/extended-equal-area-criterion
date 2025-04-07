@@ -20,7 +20,7 @@ class LineShortCircuitEvent(FailureEvent):
 
     def __init__(
         self, first_bus_name: str, second_bus_name: str, parallel_id: str, fault_position: float,
-        fault_resistance: Value = Value(0, Unit.OHM), fault_reactance: Value = Value(0, Unit.OHM)
+        fault_resistance: 0, fault_reactance: 0
     ):
         """
         Initialize the event.
@@ -65,14 +65,8 @@ class LineShortCircuitEvent(FailureEvent):
             second_bus_name=event_data.second_bus_name,
             parallel_id=event_data.parallel_id,
             fault_position=event_data.fault_position,
-            fault_resistance=Value(
-                Value.from_dto(event_data.fault_resistance).to_unit(Unit.OHM),
-                Unit.OHM
-            ),
-            fault_reactance=Value(
-                Value.from_dto(event_data.fault_reactance).to_unit(Unit.OHM),
-                Unit.OHM
-            )
+            fault_resistance=Value.from_dto(event_data.fault_resistance).to_unit(Unit.OHM),
+            fault_reactance=Value.from_dto(event_data.fault_reactance).to_unit(Unit.OHM)
         )
 
     def apply_to_network(self, network: Network):
@@ -86,7 +80,7 @@ class LineShortCircuitEvent(FailureEvent):
         :raise UnexpectedBranchElementException if element at the specified parallel ID is not a line.
         :return: A boolean indicator stating whether the fault is relevant to study.
         """
-        if self.fault_resistance.to_unit(Unit.OHM) != 0 or self.fault_reactance.to_unit(Unit.OHM) != 0:
+        if self.fault_resistance != 0 or self.fault_reactance != 0:
             raise NotImplementedError("Impedance faults are not supported.")
 
         # Get line
@@ -128,6 +122,7 @@ class LineShortCircuitEvent(FailureEvent):
                     FictiveLoad(
                         name=f"FICT_LOAD_{self.parallel_id}_{second_bus_name}_{first_bus_name}",
                         bus=branch.first_bus,
+                        base_power=network.base_power.to_unit(Unit.MVA),
                         admittance=load_admittance
                     )
                 )
@@ -141,6 +136,7 @@ class LineShortCircuitEvent(FailureEvent):
                     FictiveLoad(
                         name=f"FICT_LOAD_{self.parallel_id}_{first_bus_name}_{second_bus_name}",
                         bus=branch.second_bus,
+                        base_power=network.base_power.to_unit(Unit.MVA),
                         admittance=load_admittance
                     )
                 )

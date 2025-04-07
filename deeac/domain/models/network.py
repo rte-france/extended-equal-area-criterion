@@ -397,7 +397,6 @@ class Network:
                     load_flow_bus = load_flow.buses[bus.name]
                     # Bus voltage obtained from load flow
                     voltage_magnitude = Value.from_dto(load_flow_bus.voltage).to_unit(Unit.KV)
-                    voltage_magnitude_pu = voltage_magnitude / base_voltage
                     if type(bus) == topology_dtos.SlackBus:
                         # Phase angle of slack bus in static data
                         phase_angle = Value.from_dto(bus.phase_angle).to_unit(Unit.RAD)
@@ -412,7 +411,7 @@ class Network:
                         # Slack bus must have load flow results
                         raise LoadFlowException(bus.name, Bus.__name__)
                     # Bus is probably disconnected
-                    voltage_magnitude_pu = 0
+                    voltage_magnitude = 0
                     phase_angle = 0
                     bus_type = None
 
@@ -420,7 +419,7 @@ class Network:
                 buses[bus.name] = Bus(
                     name=bus.name,
                     base_voltage=base_voltage,
-                    voltage_magnitude_pu=voltage_magnitude_pu,
+                    voltage_magnitude=voltage_magnitude,
                     phase_angle=phase_angle,
                     type=bus_type
                 )
@@ -565,8 +564,9 @@ class Network:
                     Load(
                         name=load.name,
                         bus=bus,
-                        active_power_pu=Value.from_dto(load_data.active_power).to_unit(Unit.MW) / base_power,
-                        reactive_power_pu=Value.from_dto(load_data.reactive_power).to_unit(Unit.MVAR) / base_power,
+                        base_power=base_power,
+                        active_power=Value.from_dto(load_data.active_power).to_unit(Unit.MW),
+                        reactive_power=Value.from_dto(load_data.reactive_power).to_unit(Unit.MVAR),
                         connected=load.connected
                     )
                 )
@@ -580,8 +580,9 @@ class Network:
                     CapacitorBank(
                         name=bank.name,
                         bus=bus,
-                        active_power_pu=Value.from_dto(bank.active_power).to_unit(Unit.MW) / base_power,
-                        reactive_power_pu=-1 * Value.from_dto(bank.reactive_power).to_unit(Unit.MVAR) / base_power
+                        base_power=base_power,
+                        active_power=Value.from_dto(bank.active_power).to_unit(Unit.MW),
+                        reactive_power=-1 * Value.from_dto(bank.reactive_power).to_unit(Unit.MVAR)
                     )
                 )
 
@@ -591,7 +592,7 @@ class Network:
                 # Get reactive power from load flow results
                 try:
                     load_flow_svc = load_flow.static_var_compensators[svc.name]
-                    reactive_power = -1 * Value.from_dto(load_flow_svc.reactive_power).to_unit(Unit.MVAR) / base_power
+                    reactive_power = -1 * Value.from_dto(load_flow_svc.reactive_power).to_unit(Unit.MVAR)
                 except KeyError:
                     if svc.connected:
                         # SVC must be found in the load flow results
@@ -605,8 +606,9 @@ class Network:
                     CapacitorBank(
                         name=svc.name,
                         bus=bus,
-                        active_power_pu=0,
-                        reactive_power_pu=reactive_power
+                        base_power=base_power,
+                        active_power=0,
+                        reactive_power=reactive_power
                     )
                 )
 
@@ -618,10 +620,10 @@ class Network:
                     load_flow_hvdc_converter = load_flow.hvdc_converters[hvdc_converter.name]
                     active_power_dto = load_flow_hvdc_converter.active_power
                     active_power_dto.value = -active_power_dto.value
-                    active_power = Value.from_dto(active_power_dto).to_unit(Unit.MW) / base_power
+                    active_power = Value.from_dto(active_power_dto).to_unit(Unit.MW)
                     reactive_power_dto = load_flow_hvdc_converter.reactive_power
                     reactive_power_dto.value = -reactive_power_dto.value
-                    reactive_power = Value.from_dto(reactive_power_dto).to_unit(Unit.MVAR) / base_power
+                    reactive_power = Value.from_dto(reactive_power_dto).to_unit(Unit.MVAR)
                 except KeyError:
                     if hvdc_converter.connected:
                         # HVDC converter must be found in the load flow results
@@ -636,8 +638,9 @@ class Network:
                     Load(
                         name=hvdc_converter.name,
                         bus=bus,
-                        active_power_pu=active_power,
-                        reactive_power_pu=reactive_power,
+                        base_power=base_power,
+                        active_power=active_power,
+                        reactive_power=reactive_power,
                         connected=hvdc_converter.connected
                     )
                 )
@@ -962,12 +965,12 @@ class Network:
                 # Create fictive bus for the generator
                 base_voltage = bus.base_voltage
                 internal_voltage = generator.internal_voltage
-                voltage_magnitude_pu = abs(internal_voltage)
+                voltage_magnitude = abs(internal_voltage) * base_voltage
                 phase_angle = phase(internal_voltage)
                 fictive_generator_bus = Bus(
                     name=f"INTERNAL_VOLTAGE_{generator.name}",
                     base_voltage=base_voltage,
-                    voltage_magnitude_pu=voltage_magnitude_pu,
+                    voltage_magnitude=voltage_magnitude,
                     phase_angle=phase_angle,
                     type=BusType.GEN_INT_VOLT
                 )

@@ -8,14 +8,12 @@
 # This file is part of the deeac project.
 
 import cmath
-import numpy as np
 from enum import Enum
 from typing import Set
 
 from .load import Load
 from .capacitor_bank import CapacitorBank
 from .generator import Generator, GeneratorType
-from .value import Value, Unit, PUBase
 from .branch import Branch
 
 from deeac.domain.exceptions import CoupledBusesException, BusVoltageException
@@ -34,7 +32,7 @@ class Bus:
     """
 
     def __init__(
-        self, name: str, base_voltage: float, voltage_magnitude: Value = None, phase_angle: float = None,
+        self, name: str, base_voltage: float, voltage_magnitude_pu: float = None, phase_angle: float = None,
         type: BusType = None
     ):
         """
@@ -53,8 +51,7 @@ class Bus:
         self.capacitor_banks = []
         self.base_voltage = base_voltage
         self._type = type
-        self._voltage_magnitude = voltage_magnitude
-        self._voltage_magnitude_pu = voltage_magnitude / base_voltage
+        self._voltage_magnitude_pu = voltage_magnitude_pu
         self._phase_angle = phase_angle
         self._voltage = None
 
@@ -93,7 +90,7 @@ class Bus:
         :raise: BusVoltageException if the voltage magnitude and/or angle is/are not specified.
         """
         if self._voltage is None:
-            if self._voltage_magnitude is None or self._phase_angle is None:
+            if self._voltage_magnitude_pu is None or self._phase_angle is None:
                 raise BusVoltageException(self.name)
             self._voltage = cmath.rect(
                 self._voltage_magnitude_pu,
@@ -101,15 +98,14 @@ class Bus:
             )
         return self._voltage
 
-    def update_voltage(self, voltage_magnitude: float, phase_angle: float):
+    def update_voltage(self, voltage_magnitude_pu: float, phase_angle: float):
         """
         Update bus voltage.
 
         :param voltage_magnitude: New voltage magnitude.
         :param phase_angle: New phase angle.
         """
-        self._voltage_magnitude = voltage_magnitude
-        self._voltage_magnitude_pu = voltage_magnitude / self.base_voltage
+        self._voltage_magnitude_pu = voltage_magnitude_pu
         self._phase_angle = phase_angle
         self._voltage = None
         for generator in self.generators:
@@ -122,14 +118,6 @@ class Bus:
             # Update admittance of all connected capacitor banks
             bank.compute_admittance()
 
-    @property
-    def voltage_magnitude(self) -> float:
-        """
-        Return the voltage magnitude of this bus.
-
-        :return: The voltage magnitude.
-        """
-        return self._voltage_magnitude
 
     @property
     def voltage_magnitude_pu(self) -> float:
@@ -213,8 +201,8 @@ class Bus:
         """
         if (
             self.type == BusType.GEN_INT_VOLT or bus.type == BusType.GEN_INT_VOLT or
-            self.voltage_magnitude is None or self.phase_angle is None or
-            bus.voltage_magnitude is None or bus.phase_angle is None
+            self.voltage_magnitude_pu is None or self.phase_angle is None or
+            bus.voltage_magnitude_pu is None or bus.phase_angle is None
         ):
             # Buses must not model a generator internal voltage and must have a voltage
             raise CoupledBusesException(self.name, bus.name)
@@ -224,7 +212,7 @@ class Bus:
             return
 
         if (
-            (bus.voltage_magnitude != self.voltage_magnitude) or
+            (bus.voltage_magnitude_pu != self.voltage_magnitude_pu) or
             (bus.phase_angle != self.phase_angle) or
             (bus.base_voltage != self.base_voltage)
         ):
@@ -232,9 +220,9 @@ class Bus:
             raise CoupledBusesException(self.name, bus.name)
         else:
             # Copy voltages and names
-            voltage_magnitude = bus.voltage_magnitude
+            voltage_magnitude_pu = bus.voltage_magnitude_pu
             phase_angle = bus.phase_angle
-            self.update_voltage(voltage_magnitude, phase_angle)
+            self.update_voltage(voltage_magnitude_pu, phase_angle)
             self.base_voltage = bus.base_voltage
             self.name = f"{self.name}_{bus.name}"
 

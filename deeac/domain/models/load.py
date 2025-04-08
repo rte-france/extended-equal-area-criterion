@@ -33,8 +33,6 @@ class Load:
         self.name = name
         self._bus = bus
         self._base_power = base_power
-        self._active_power = active_power
-        self._reactive_power = reactive_power
         self._active_power_pu = active_power / base_power
         self._reactive_power_pu = reactive_power / base_power
         self.connected = connected
@@ -47,7 +45,7 @@ class Load:
         Representation of a load.
         """
         return (
-            f"Load: Name=[{self.name}] Bus=[{self.bus.name}] P=[{self._active_power}] Q=[{self._reactive_power}] "
+            f"Load: Name=[{self.name}] Bus=[{self.bus.name}] P=[{self.active_power}] Q=[{self.reactive_power}] "
             f"Connected=[{self.connected}]"
         )
 
@@ -62,13 +60,22 @@ class Load:
             self._admittance = np.conj(self.complex_power_pu) / self.bus.voltage_magnitude_pu ** 2
 
     @property
-    def active_power_value_pu(self) -> float:
+    def active_power(self) -> float:
         """
         Return the active power value.
 
         :return: The active power in MW.
         """
-        return self._active_power_pu
+        return self._active_power_pu * self._base_power
+
+    @property
+    def reactive_power(self) -> float:
+        """
+        Return the active power value.
+
+        :return: The active power in MW.
+        """
+        return self._reactive_power_pu * self._base_power
 
     @property
     def complex_power_pu(self) -> complex:

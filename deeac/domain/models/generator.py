@@ -78,14 +78,11 @@ class Generator:
         self._pu_base_reactance = pu_base_reactance
         self._base_power = base_power
 
-        self._direct_transient_reactance = direct_transient_reactance
         self._direct_transient_reactance_pu = direct_transient_reactance / pu_base_reactance
         self._inertia_constant = inertia_constant
 
-        self._active_power = active_power
         self._active_power_pu = active_power / base_power
         self._max_active_power_pu = max_active_power / base_power
-        self._reactive_power = reactive_power
         self._reactive_power_pu = reactive_power / base_power
 
         self.connected = connected
@@ -105,9 +102,9 @@ class Generator:
         """
         return (
             f"Generator: Name=[{self.name}] Type=[{self.type.name}] Bus=[{self._bus.name}] "
-            f"x'd=[{self._direct_transient_reactance}] H=[{self._inertia_constant}] "
-            f"P=[{self._active_power}] Pmax=[{self._max_active_power}]  "
-            f"Q=[{self._reactive_power}] "
+            f"x'd=[{self.direct_transient_reactance}] H=[{self._inertia_constant}] "
+            f"P=[{self.active_power}] Pmax=[{self.max_active_power}]  "
+            f"Q=[{self.reactive_power}] "
             f"Connected=[{self.connected}]"
         )
 
@@ -158,6 +155,13 @@ class Generator:
         return self._max_active_power_pu
 
     @property
+    def max_active_power(self) -> float:
+        """
+        Return the maximum active power in MW.
+        """
+        return self._max_active_power_pu * self._base_power
+
+    @property
     def active_power_pu(self) -> float:
         """
         Return the active power in per unit.
@@ -165,13 +169,22 @@ class Generator:
         return self._active_power_pu
 
     @property
-    def active_power_value(self) -> float:
+    def active_power(self) -> float:
         """
         Return the active power value.
 
         :return: The active power value in MW.
         """
-        return self._active_power
+        return self._active_power_pu * self._base_power
+
+    @property
+    def reactive_power(self) -> float:
+        """
+        Return the reactive power value.
+
+        :return: The reactive power value in MVAr.
+        """
+        return self._reactive_power_pu * self._base_power
 
     @property
     def direct_transient_reactance_pu(self) -> float:
@@ -184,6 +197,18 @@ class Generator:
         if not self.connected:
             raise DisconnectedElementException(repr(self), Generator.__name__)
         return self._direct_transient_reactance_pu
+
+    @property
+    def direct_transient_reactance(self) -> float:
+        """
+        Return the direct transient reactance
+
+        :return: Direct transient reactance in Ohm.
+        :raise DisconnectedElementException if the generator is disconnected.
+        """
+        if not self.connected:
+            raise DisconnectedElementException(repr(self), Generator.__name__)
+        return self._direct_transient_reactance_pu * self._pu_base_reactance
 
     @property
     def direct_transient_admittance(self) -> complex:

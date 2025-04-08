@@ -41,10 +41,6 @@ class Transformer:
         :param transformer_type: Transformer 1 or Transformer 8
         """
         self._base_impedance = base_impedance
-        self._resistance = resistance
-        self._reactance = reactance
-        self._shunt_susceptance = shunt_susceptance
-        self._shunt_conductance = shunt_conductance
         self._resistance_pu = resistance / base_impedance
         self._reactance_pu = reactance / base_impedance
         self._shunt_susceptance_pu = shunt_susceptance * base_impedance
@@ -93,7 +89,7 @@ class Transformer:
         :return: Transformer impedance (per unit)
         :raise: DisconnectedElementException if the transformer is opened.
         """
-        if self._resistance is None or self._reactance is None:
+        if self._resistance_pu is None or self._reactance_pu is None:
             # No load flow data were loaded for this transformer
             raise TransformerImpedanceException()
         return complex(self._resistance_pu, self._reactance_pu)
@@ -115,7 +111,44 @@ class Transformer:
         :return: Shunt admittance of the transformer (per unit)
         :raise: DisconnectedElementException if the transformer is opened.
         """
-        if self._resistance is None or self._reactance is None:
+        if self._resistance_pu is None or self._reactance_pu is None:
             # No load flow data were loaded for this transformer
             raise TransformerImpedanceException()
         return complex(self._shunt_conductance_pu, -1 * self._shunt_susceptance_pu)
+
+    @property
+    def resistance(self) -> float:
+        """
+        Transformer resistance.
+
+        :return: Transformer resistance (Ohm)
+        """
+        return self._resistance_pu * self._base_impedance
+
+    @property
+    def reactance(self) -> float:
+        """
+        Transformer reactance.
+
+        :return: Transformer reactance (Ohm)
+        """
+        return self.reactance_pu * self._base_impedance
+
+    @property
+    def shunt_conductance(self) -> float:
+        """
+        Transformer shunt conductance.
+
+        :return: Transformer shunt conductance (S)
+        """
+        return self._shunt_conductance_pu / self._base_impedance
+
+    @property
+    def shunt_susceptance(self) -> float:
+        """
+        Transformer shunt susceptance.
+
+        :return: Transformer shunt susceptance (S)
+        """
+        return self._shunt_susceptance_pu / self._base_impedance
+

@@ -30,10 +30,6 @@ class Line:
         :param closed_at_second_bus: True if the line is closed at the second bus, False otherwise.
         """
         self._base_impedance = base_impedance
-        self._resistance = resistance
-        self._reactance = reactance
-        self._shunt_susceptance = shunt_susceptance
-        self._shunt_conductance = shunt_conductance
         self._resistance_pu = resistance / base_impedance
         self._reactance_pu = reactance / base_impedance
         self._shunt_conductance_pu = shunt_conductance * base_impedance
@@ -47,8 +43,8 @@ class Line:
         Representation of a line.
         """
         return (
-            f"Line: R=[{self._resistance}] X=[{self._reactance}] Gs=[{self._shunt_conductance}] "
-            f"Bs=[{self._shunt_susceptance}] Closed at first bus=[{self.closed_at_first_bus}] Closed at second bus="
+            f"Line: R=[{self.resistance}] X=[{self.reactance}] Gs=[{self.shunt_conductance}] "
+            f"Bs=[{self.shunt_susceptance}] Closed at first bus=[{self.closed_at_first_bus}] Closed at second bus="
             f"[{self.closed_at_second_bus}] Metal short circuit=[{self.metal_short_circuited}]"
         )
 
@@ -96,3 +92,39 @@ class Line:
         :return: Shunt admittance of the line (per unit)
         """
         return complex(self._shunt_conductance_pu, self._shunt_susceptance_pu)
+
+    @property
+    def resistance(self) -> float:
+        """
+        line resistance.
+
+        :return: Line resistance (Ohm)
+        """
+        return self._resistance_pu * self._base_impedance
+
+    @property
+    def reactance(self) -> float:
+        """
+        line reactance.
+
+        :return: Line reactance (Ohm)
+        """
+        return self.reactance_pu * self._base_impedance
+
+    @property
+    def shunt_conductance(self) -> float:
+        """
+        line shunt conductance.
+
+        :return: Line shunt conductance (S)
+        """
+        return self._shunt_conductance_pu / self._base_impedance
+
+    @property
+    def shunt_susceptance(self) -> float:
+        """
+        line shunt susceptance.
+
+        :return: Line shunt susceptance (S)
+        """
+        return self._shunt_susceptance_pu / self._base_impedance

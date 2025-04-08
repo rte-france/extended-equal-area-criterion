@@ -32,8 +32,6 @@ class CapacitorBank:
         self.name = name
         self._bus = bus
         self._base_power = base_power
-        self._active_power = active_power
-        self._reactive_power = reactive_power
         self._active_power_pu = active_power / base_power
         self._reactive_power_pu = reactive_power / base_power
 
@@ -45,8 +43,8 @@ class CapacitorBank:
         Representation of a capacitor bank.
         """
         return (
-            f"Capacitor bank: Name=[{self.name}] Bus=[{self.bus.name}] P=[{self._active_power}] "
-            f"Q=[{self._reactive_power}]"
+            f"Capacitor bank: Name=[{self.name}] Bus=[{self.bus.name}] P=[{self.active_power}] "
+            f"Q=[{self.reactive_power}]"
         )
 
     def compute_admittance(self):
@@ -96,3 +94,21 @@ class CapacitorBank:
         """
         self._bus = bus
         self.compute_admittance()
+
+    @property
+    def active_power(self) -> float:
+        """
+        Return the active power value.
+
+        :return: The active power in MW.
+        """
+        return self._active_power_pu * self._base_power
+
+    @property
+    def reactive_power(self) -> float:
+        """
+        Return the active power value.
+
+        :return: The active power in MW.
+        """
+        return self._reactive_power_pu * self._base_power

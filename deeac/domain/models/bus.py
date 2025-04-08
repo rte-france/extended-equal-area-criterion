@@ -52,7 +52,6 @@ class Bus:
         self.capacitor_banks = []
         self.base_voltage = base_voltage
         self._type = type
-        self._voltage_magnitude = voltage_magnitude
         self._voltage_magnitude_pu = voltage_magnitude / base_voltage
         self._phase_angle = phase_angle
         self._voltage = None
@@ -128,7 +127,7 @@ class Bus:
 
         :return: The voltage magnitude.
         """
-        return self._voltage_magnitude
+        return self._voltage_magnitude_pu * self.base_voltage
 
     @property
     def voltage_magnitude_pu(self) -> float:

@@ -20,7 +20,7 @@ class Transformer:
         resistance: float = None, reactance: float = None,
         shunt_susceptance: float = None, shunt_conductance: float = None,
         phase_shift_angle: float = None, ratio: float = None,
-        closed_at_first_bus: bool = True, closed_at_second_bus: bool = True, initial_tap_number: int = None,
+        closed_at_first_bus: bool = True, closed_at_second_bus: bool = True,
         sending_node: str = None, receiving_node: str = None, transformer_type: int = None
     ):
         """
@@ -56,8 +56,7 @@ class Transformer:
         self.closed_at_second_bus = closed_at_second_bus
         self.sending_node = sending_node
         self.receiving_node = receiving_node
-        self.transformer_type = transformer_type
-        self.initial_tap_number = initial_tap_number
+        self.transformer_type = transformer_type  # TODO must not be present here!
 
     def __repr__(self):
         """

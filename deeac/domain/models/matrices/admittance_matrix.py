@@ -100,7 +100,7 @@ class AdmittanceMatrix(BusMatrix):
                     if isinstance(element, Transformer) is True:
                         impedance = element.impedance
                         shunt_admittance = element.shunt_admittance
-                        if element.transformer_type == 8:
+                        if element.transformer_type == 8:  # TODO must not be present here!
                             ratio = cmath.rect(element.ratio, element.phase_shift_angle)
                             sending_shunt_admittance = np.conj(ratio) * (ratio - 1) / impedance + ratio ** 2 * shunt_admittance
                             receiving_shunt_admittance = (1 - ratio) / impedance

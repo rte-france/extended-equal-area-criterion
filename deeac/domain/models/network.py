@@ -458,24 +458,12 @@ class Network:
                     # Generator probably disconnected
                     active_power = 0
                     reactive_power = 0
-                if generator_type == GeneratorType.PQ:
-                    target_voltage = None
-                else:
-                    # Slack generator, target voltage V and its angle are set
-                    target_voltage = Value(
-                        value=Value.from_dto(generator.target_voltage).to_unit(Unit.KV),
-                        unit=Unit.KV,
-                        base=pu_base_voltage
-                    )
 
                 # Convert inertia constant to system-based
                 inertia_constant = Value.from_dto(generator.inertia_constant).to_unit(Unit.MWS_PER_MVA) / base_power
 
                 # Minimum and maximum powers
-                min_active_power = Value.from_dto(generator.min_active_power).to_unit(Unit.MW)
                 max_active_power = Value.from_dto(generator.max_active_power).to_unit(Unit.MW)
-                min_reactive_power = Value.from_dto(generator.min_reactive_power).to_unit(Unit.MVAR)
-                max_reactive_power = Value.from_dto(generator.max_reactive_power).to_unit(Unit.MVAR)
                 try:
                     generator_source = GeneratorSource.__getattr__(generator.source.lower())
                 except AttributeError:
@@ -492,12 +480,9 @@ class Network:
                         base_power=base_power,
                         direct_transient_reactance=Value.from_dto(generator.direct_transient_reactance).to_unit(Unit.OHM),
                         inertia_constant=inertia_constant,
-                        min_active_power=min_active_power,
                         active_power=active_power,
                         max_active_power=max_active_power,
-                        min_reactive_power=min_reactive_power,
                         reactive_power=reactive_power,
-                        max_reactive_power=max_reactive_power,
                         connected=generator.connected
                     )
                 )

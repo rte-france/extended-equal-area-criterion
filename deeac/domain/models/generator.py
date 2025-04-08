@@ -52,8 +52,8 @@ class Generator:
         self, name: str, type: GeneratorType, bus: 'Bus',
         pu_base_reactance, base_power,
         direct_transient_reactance: float, inertia_constant: float,
-        min_active_power: float, active_power: float, max_active_power: float,
-        min_reactive_power: float, reactive_power: float, max_reactive_power: float,
+        active_power: float, max_active_power: float,
+        reactive_power: float,
         connected: bool = True, source: GeneratorSource = None
     ):
         """
@@ -64,12 +64,9 @@ class Generator:
         :param bus: Bus to which the generator is connected.
         :param direct_transient_reactance: Direct axis transient reactance of the generator. Unit: Ohm.
         :param inertia_constant: Constant of inertia of the generator. Unit: MWs / MVA
-        :param min_active_power: Minimum active power of the generator. Unit: MW.
         :param active_power: Active power of the generator. Unit: MW.
         :param max_active_power: Maximum active power of the generator. Unit: MW.
-        :param reactive_power: Minimum reactive power of the generator. Unit: MVAr.
         :param reactive_power: Reactive power of the generator. Unit: MVAr.
-        :param reactive_power: Maximum reactive power of the generator. Unit: MVAr.
         :param target_voltage_magnitude: Target voltage magnitude applied by the generator in case of a PV generator.
         :param connected: True if the generator is connected to the network, False otherwise.
         :raise ZeroDirectTransientReactanceExeption if direct transient reactance is equal to 0.
@@ -84,15 +81,13 @@ class Generator:
         self._direct_transient_reactance = direct_transient_reactance
         self._direct_transient_reactance_pu = direct_transient_reactance / pu_base_reactance
         self._inertia_constant = inertia_constant
-        self._min_active_power = min_active_power
+
         self._active_power = active_power
         self._active_power_pu = active_power / base_power
-        self._max_active_power = max_active_power
         self._max_active_power_pu = max_active_power / base_power
-        self._min_reactive_power = min_reactive_power
         self._reactive_power = reactive_power
         self._reactive_power_pu = reactive_power / base_power
-        self._max_reactive_power = max_reactive_power
+
         self.connected = connected
         self.source = source
 
@@ -110,9 +105,9 @@ class Generator:
         """
         return (
             f"Generator: Name=[{self.name}] Type=[{self.type.name}] Bus=[{self._bus.name}] "
-            f"x'd=[{self._direct_transient_reactance}] H=[{self._inertia_constant}] Pmin=[{self._min_active_power}] "
-            f"P=[{self._active_power}] Pmax=[{self._max_active_power}] Qmin=[{self._min_reactive_power}] "
-            f"Q=[{self._reactive_power}] Qmax=[{self._max_reactive_power}] |Vt|=[{self._target_voltage_magnitude}] "
+            f"x'd=[{self._direct_transient_reactance}] H=[{self._inertia_constant}] "
+            f"P=[{self._active_power}] Pmax=[{self._max_active_power}]  "
+            f"Q=[{self._reactive_power}] "
             f"Connected=[{self.connected}]"
         )
 

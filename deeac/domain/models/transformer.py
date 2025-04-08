@@ -7,7 +7,6 @@
 # SPDX-License-Identifier: MPL-2.0
 # This file is part of the deeac project.
 
-from .value import Value, Unit
 from deeac.domain.exceptions import TransformerImpedanceException
 
 
@@ -20,7 +19,7 @@ class Transformer:
         self, base_impedance = None,
         resistance: float = None, reactance: float = None,
         shunt_susceptance: float = None, shunt_conductance: float = None,
-        phase_shift_angle: Value = None, ratio: float = None,
+        phase_shift_angle: float = None, ratio: float = None,
         closed_at_first_bus: bool = True, closed_at_second_bus: bool = True, initial_tap_number: int = None,
         sending_node: str = None, receiving_node: str = None, transformer_type: int = None
     ):
@@ -33,7 +32,7 @@ class Transformer:
         :param shunt_susceptance: Transformer shunt susceptance.
         :param shunt_conductance: Transformer shunt conductance.
         :param base_impedance: Base impedance for pu.
-        :param phase_shift_angle: Phase shift angle associated to the tap
+        :param phase_shift_angle: Phase shift angle associated to the tap. unit: Rad.
         :param ratio:
         :param closed_at_first_bus: True if the line is closed at the primary side, False otherwise.
         :param closed_at_second_bus: True if the line is closed at the secondary side, False otherwise.
@@ -74,9 +73,9 @@ class Transformer:
         """
         Phase shift angle.
 
-        :return: Phase shift angle (in degree)
+        :return: Phase shift angle (in rad)
         """
-        return self._phase_shift_angle.to_unit(Unit.DEG) if self._phase_shift_angle is not None else None
+        return self._phase_shift_angle if self._phase_shift_angle is not None else None
 
     @property
     def closed(self) -> bool:

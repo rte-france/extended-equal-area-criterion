@@ -10,6 +10,7 @@
 from cmath import phase, pi
 from functools import lru_cache
 
+import numpy as np
 import networkx as nx
 from typing import List, Set, Tuple, DefaultDict, TYPE_CHECKING
 from enum import Enum
@@ -672,7 +673,8 @@ class Network:
                         receiving_node_voltage = tap_data.receiving_node_voltages[tap_index]
                         ratio = (branch.first_bus.base_voltage / sending_node_voltage) \
                                 * (receiving_node_voltage / branch.second_bus.base_voltage)
-                        phase_shift_angle = Value(value=tap_data.phase_angles[tap_index], unit=Unit.DEG)
+                        phase_shift_angle_deg = tap_data.phase_angles[tap_index]
+                        phase_shift_angle = np.deg2rad(phase_shift_angle_deg)
                     else:
                         transformer_type = 1
                         ratio = element.ratio

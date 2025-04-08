@@ -52,13 +52,13 @@ class Network:
     Distribution network
     """
 
-    def __init__(self, buses: List[Bus], breakers: List[ParallelBreakers], base_power: Value, frequency: float = None):
+    def __init__(self, buses: List[Bus], breakers: List[ParallelBreakers], base_power: float, frequency: float = None):
         """
         Initialize a topology with a list of its buses.
 
         :param buses: List of the buses in the topology.
         :param breakers: List of the breakers that couple buses in the network.
-        :param base_power: System base power.
+        :param base_power: System base power. Unit: MVA.
         :param frequency: Frequency for this network (50Hz in Europe, default value). unit: Hz.
         """
         self.buses = buses
@@ -1249,7 +1249,7 @@ class SimplifiedNetwork(Network):
     Distribution network without any breaker.
     """
 
-    def __init__(self, buses: List[Bus], base_power: Value):
+    def __init__(self, buses: List[Bus], base_power: float):
         """
         Initialize with a list of its buses.
 

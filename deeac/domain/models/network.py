@@ -497,7 +497,6 @@ class Network:
                         min_reactive_power=min_reactive_power,
                         reactive_power=reactive_power,
                         max_reactive_power=max_reactive_power,
-                        target_voltage_magnitude=target_voltage,
                         connected=generator.connected
                     )
                 )

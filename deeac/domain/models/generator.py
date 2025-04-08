@@ -11,7 +11,6 @@ from typing import Dict, List, TYPE_CHECKING
 import numpy as np
 from enum import Enum
 
-from .value import Value, Unit
 from deeac.domain.exceptions import (
     DisconnectedElementException, ZeroDirectTransientReactanceException, UnknownRotorAngleException,
     UnknownAngularSpeedException, UnknownNetworkStateException
@@ -55,7 +54,6 @@ class Generator:
         direct_transient_reactance: float, inertia_constant: float,
         min_active_power: float, active_power: float, max_active_power: float,
         min_reactive_power: float, reactive_power: float, max_reactive_power: float,
-        target_voltage_magnitude: Value,
         connected: bool = True, source: GeneratorSource = None
     ):
         """
@@ -95,7 +93,6 @@ class Generator:
         self._reactive_power = reactive_power
         self._reactive_power_pu = reactive_power / base_power
         self._max_reactive_power = max_reactive_power
-        self._target_voltage_magnitude = target_voltage_magnitude
         self.connected = connected
         self.source = source
 

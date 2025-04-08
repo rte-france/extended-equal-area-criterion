@@ -315,8 +315,6 @@ class EurostagTopologyParser(TopologyParser):
                 generator_content["connected"] = True if generator_data.state == State.CONNECTED else False
 
                 # Active power (P)
-                generator_min_active_power = generator_data.min_active_power
-                generator_content["min_active_power"] = Value(value=generator_min_active_power, unit=Unit.MW)
                 generator_active_power = generator_data.active_power
                 if generator_active_power is not None:
                     generator_active_power = Value(value=generator_active_power, unit=Unit.MW)
@@ -324,14 +322,11 @@ class EurostagTopologyParser(TopologyParser):
                 generator_max_active_power = generator_data.max_active_power
                 generator_content["max_active_power"] = Value(value=generator_max_active_power, unit=Unit.MW)
                 # Reactive power (Q)
-                generator_min_reactive_power = generator_data.min_reactive_power
-                generator_content["min_reactive_power"] = Value(value=generator_min_reactive_power, unit=Unit.MVAR)
                 generator_reactive_power = generator_data.reactive_power
                 if generator_reactive_power is not None:
                     generator_reactive_power = Value(value=generator_reactive_power, unit=Unit.MVAR)
                 generator_content["reactive_power"] = generator_reactive_power
-                generator_max_reactive_power = generator_data.max_reactive_power
-                generator_content["max_reactive_power"] = Value(value=generator_max_reactive_power, unit=Unit.MVAR)
+
                 generator_source = Generator
                 generator_content["source"] = generator_data.source
 
@@ -341,12 +336,6 @@ class EurostagTopologyParser(TopologyParser):
                     generator_reactive_power.value *= -1
                     loads[generator_name] = Load(**generator_content)
                     continue
-
-                # Target voltage (V)
-                generator_target_voltage = generator_data.target_voltage
-                if generator_target_voltage is not None:
-                    generator_target_voltage = Value(value=generator_target_voltage, unit=Unit.KV)
-                generator_content["target_voltage"] = generator_target_voltage
 
                 # Regulating mode
                 generator_content["regulating"] = True \

@@ -20,7 +20,7 @@ class BusShortCircuitEvent(FailureEvent):
     """
 
     def __init__(
-        self, bus_name: str, fault_resistance: Value = Value(0, Unit.OHM), fault_reactance: Value = Value(0, Unit.OHM)
+        self, bus_name: str, fault_resistance: float = 0, fault_reactance: float = 0
     ):
         """
         Initialize the event.
@@ -31,8 +31,8 @@ class BusShortCircuitEvent(FailureEvent):
         """
         self.bus_name = bus_name
         # Use epsilon for impedance to avoid infinite values in computations
-        if fault_resistance.value == 0:
-            fault_resistance = Value(sys.float_info.epsilon, Unit.OHM)
+        if fault_resistance == 0:
+            fault_resistance = sys.float_info.epsilon
         self.fault_resistance = fault_resistance
         self.fault_reactance = fault_reactance
 
@@ -54,14 +54,8 @@ class BusShortCircuitEvent(FailureEvent):
         """
         return cls(
             bus_name=event_data.bus_name,
-            fault_resistance=Value(
-                Value.from_dto(event_data.fault_resistance).to_unit(Unit.OHM),
-                Unit.OHM
-            ),
-            fault_reactance=Value(
-                Value.from_dto(event_data.fault_reactance).to_unit(Unit.OHM),
-                Unit.OHM
-            ),
+            fault_resistance=Value.from_dto(event_data.fault_resistance).to_unit(Unit.OHM),
+            fault_reactance=Value.from_dto(event_data.fault_reactance).to_unit(Unit.OHM),
         )
 
     def apply_to_network(self, network: Network):

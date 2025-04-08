@@ -109,7 +109,7 @@ class CriticalClustersIdentifier(ABC):
                 # Limit reached
                 break
 
-            aggregate_power = sum(gen.active_power for gen in candidates)
+            aggregate_power = sum(gen.active_power_pu for gen in candidates)
             if self._min_cluster_power is not None and abs(aggregate_power) < self._min_cluster_power:
                 # Cluster power is too low to consider it as a candidate
                 continue
@@ -280,7 +280,7 @@ class ThresholdBasedIdentifier(CriticalClustersIdentifier):
                 return
 
             # Compute the delivered aggregated active power
-            aggregate_power = abs(sum(gen.active_power for gen in self._critical_machine_candidates))
+            aggregate_power = abs(sum(gen.active_power_pu for gen in self._critical_machine_candidates))
             if aggregate_power >= self._min_cluster_power:
                 # The cluster is valid and verifies the condition on the aggregate power
                 return
@@ -385,7 +385,7 @@ class GapBasedIdentifier(CriticalClustersIdentifier):
 
             # Ignore the small hydro units if "RTE" is specified as tso_customization in the first identification
             if (self._tso_customization == "NO_HYDRO"
-                    and generator.source.value == "HYDRO" and abs(generator.max_active_power) < 1):
+                    and generator.source.value == "HYDRO" and abs(generator.max_active_power_pu) < 1):
                 continue
 
             # Ignore the non-nuclear units if "RTE" is specified as tso_customization in the second identification

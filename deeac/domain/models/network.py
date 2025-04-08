@@ -440,23 +440,14 @@ class Network:
                 # Compute base voltage and resistance for per unit conversions
                 base_voltage = bus.base_voltage
                 pu_base_voltage = PUBase(value=base_voltage, unit=Unit.KV)
-                base_resistance = base_voltage ** 2 / base_power
-                pu_base_resistance = PUBase(value=base_resistance, unit=Unit.OHM)
+                pu_base_reactance = base_voltage ** 2 / base_power
 
                 # Get load flow data
                 try:
                     load_flow_generator = load_flow.generators[generator.name]
                     # Read load flow data for active (P) and reactive (Q) powers
-                    active_power = Value(
-                        value=Value.from_dto(load_flow_generator.active_power).to_unit(Unit.MW),
-                        unit=Unit.MW,
-                        base=PUBase(value=base_power, unit=Unit.MW)
-                    )
-                    reactive_power = Value(
-                        value=Value.from_dto(load_flow_generator.reactive_power).to_unit(Unit.MVAR),
-                        unit=Unit.MVAR,
-                        base=PUBase(value=base_power, unit=Unit.MVAR)
-                    )
+                    active_power = Value.from_dto(load_flow_generator.active_power).to_unit(Unit.MW)
+                    reactive_power = Value.from_dto(load_flow_generator.reactive_power).to_unit(Unit.MVAR)
 
                 except KeyError:
                     # No load flow data for this generator
@@ -464,16 +455,8 @@ class Network:
                         # Generator must be found in the load flow results if slack or connected
                         raise LoadFlowException(generator.name, Generator.__name__)
                     # Generator probably disconnected
-                    active_power = Value(
-                        value=0,
-                        unit=Unit.MW,
-                        base=PUBase(value=base_power, unit=Unit.MW)
-                    )
-                    reactive_power = Value(
-                        value=0,
-                        unit=Unit.MVAR,
-                        base=PUBase(value=base_power, unit=Unit.MVAR)
-                    )
+                    active_power = 0
+                    reactive_power = 0
                 if generator_type == GeneratorType.PQ:
                     target_voltage = None
                 else:
@@ -488,26 +471,10 @@ class Network:
                 inertia_constant = Value.from_dto(generator.inertia_constant).to_unit(Unit.MWS_PER_MVA) / base_power
 
                 # Minimum and maximum powers
-                min_active_power = Value(
-                    value=Value.from_dto(generator.min_active_power).to_unit(Unit.MW),
-                    unit=Unit.MW,
-                    base=PUBase(value=base_power, unit=Unit.MW)
-                )
-                max_active_power = Value(
-                    value=Value.from_dto(generator.max_active_power).to_unit(Unit.MW),
-                    unit=Unit.MW,
-                    base=PUBase(value=base_power, unit=Unit.MW)
-                )
-                min_reactive_power = Value(
-                    value=Value.from_dto(generator.min_reactive_power).to_unit(Unit.MVAR),
-                    unit=Unit.MVAR,
-                    base=PUBase(value=base_power, unit=Unit.MVAR)
-                )
-                max_reactive_power = Value(
-                    value=Value.from_dto(generator.max_reactive_power).to_unit(Unit.MVAR),
-                    unit=Unit.MVAR,
-                    base=PUBase(value=base_power, unit=Unit.MVAR)
-                )
+                min_active_power = Value.from_dto(generator.min_active_power).to_unit(Unit.MW)
+                max_active_power = Value.from_dto(generator.max_active_power).to_unit(Unit.MW)
+                min_reactive_power = Value.from_dto(generator.min_reactive_power).to_unit(Unit.MVAR)
+                max_reactive_power = Value.from_dto(generator.max_reactive_power).to_unit(Unit.MVAR)
                 try:
                     generator_source = GeneratorSource.__getattr__(generator.source.lower())
                 except AttributeError:
@@ -520,15 +487,10 @@ class Network:
                         type=generator_type,
                         source=generator_source,
                         bus=bus,
-                        direct_transient_reactance=Value(
-                            value=Value.from_dto(generator.direct_transient_reactance).to_unit(Unit.OHM),
-                            unit=Unit.OHM,
-                            base=pu_base_resistance
-                        ),
-                        inertia_constant=Value(
-                            value=inertia_constant,
-                            unit=Unit.MWS_PER_MVA
-                        ),
+                        pu_base_reactance=pu_base_reactance,
+                        base_power=base_power,
+                        direct_transient_reactance=Value.from_dto(generator.direct_transient_reactance).to_unit(Unit.OHM),
+                        inertia_constant=inertia_constant,
                         min_active_power=min_active_power,
                         active_power=active_power,
                         max_active_power=max_active_power,
@@ -984,7 +946,7 @@ class Network:
                 fictive_generator_line = Line(
                     base_impedance=base_impedance,
                     resistance=0,
-                    reactance=generator.direct_transient_reactance * base_impedance,
+                    reactance=generator.direct_transient_reactance_pu * base_impedance,
                     shunt_conductance=0,
                     shunt_susceptance=0
                 )

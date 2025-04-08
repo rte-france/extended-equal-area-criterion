@@ -52,20 +52,20 @@ class Network:
     Distribution network
     """
 
-    def __init__(self, buses: List[Bus], breakers: List[ParallelBreakers], base_power: Value, frequency: Value = None):
+    def __init__(self, buses: List[Bus], breakers: List[ParallelBreakers], base_power: Value, frequency: float = None):
         """
         Initialize a topology with a list of its buses.
 
         :param buses: List of the buses in the topology.
         :param breakers: List of the breakers that couple buses in the network.
         :param base_power: System base power.
-        :param frequency: Frequency for this network (50Hz in Europe, default value).
+        :param frequency: Frequency for this network (50Hz in Europe, default value). unit: Hz.
         """
         self.buses = buses
         self._breakers = breakers
         self.base_power = base_power
         if frequency is None:
-            self.frequency = Value(50, Unit.HZ)
+            self.frequency = 50
         else:
             self.frequency = frequency
 
@@ -147,7 +147,7 @@ class Network:
 
         :return: The network pulse.
         """
-        return 2 * pi * self.frequency.to_unit(Unit.HZ)
+        return 2 * pi * self.frequency
 
     @property
     def failure_events(self) -> List['Event']:

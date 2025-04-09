@@ -22,7 +22,7 @@ from deeac.domain.utils import get_element, deepcopy
 from deeac.domain.ports.dtos import topology as topology_dtos, load_flow as load_flow_dtos
 from deeac.domain.exceptions import (
     DEEACExceptionCollector, BranchContentException, LoadFlowException, ElementNotFoundException, ParallelException,
-    SimplifiedNetworkBreakerExcepion, NetworkStateException, MultipleSlackBusException, NoSlackBusException
+    SimplifiedNetworkBreakerException, NetworkStateException, MultipleSlackBusException, NoSlackBusException
 )
 from .bus import Bus, BusType
 from .branch import Branch
@@ -52,7 +52,7 @@ class NetworkState(Enum):
 
 class Network:
     """
-    Distribution network
+    Transmission network
     """
 
     def __init__(self, buses: List[Bus], breakers: List[ParallelBreakers], frequency: float = None):
@@ -1220,9 +1220,9 @@ class Network:
         )
 
 
-class SimplifiedNetwork(Network):
+class SimplifiedNetwork:
     """
-    Distribution network without any breaker.
+    Transmission network without any breaker.
     """
 
     def __init__(self, buses: List[Bus]):
@@ -1231,7 +1231,7 @@ class SimplifiedNetwork(Network):
 
         :param buses: List of the buses in the topology.
         """
-        super().__init__(buses=buses, breakers=[])
+        self.buses = buses
         self._admittance_matrix = None
 
     @property
@@ -1256,4 +1256,8 @@ class SimplifiedNetwork(Network):
         :param second_bus_name: Name of the second bus connected to the branch.
         :raise SimplifiedNetworkBreakerException in any case.
         """
-        raise SimplifiedNetworkBreakerExcepion(first_bus_name, second_bus_name)
+        raise SimplifiedNetworkBreakerException(first_bus_name, second_bus_name)
+
+    @property
+    def generators(self):
+        return [gen for bus in self.buses for gen in bus.generators]

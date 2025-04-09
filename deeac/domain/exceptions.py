@@ -279,7 +279,7 @@ class ElementNotFoundException(DEEACException):
         )
 
 
-class SimplifiedNetworkBreakerExcepion(DEEACException):
+class SimplifiedNetworkBreakerException(DEEACException):
     """
     Exception raised when a breaker is requested for a simplified network where buses are merged.
     """

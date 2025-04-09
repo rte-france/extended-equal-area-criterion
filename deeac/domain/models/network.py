@@ -721,10 +721,6 @@ class Network:
         :param mitigation_events: List of mitigation events use to derive the post-fault state.
         :return: a bool signaling whether the fault happened on a disconnected line, thus ending the execution
         """
-        # Remove during and post-fault simplified networks
-        self._simplified_networks[NetworkState.DURING_FAULT] = None
-        self._simplified_networks[NetworkState.POST_FAULT] = None
-
         # Copy events so that any modification of an event will not be replicated in this network
         self._failure_events = failure_events
         self._mitigation_events = mitigation_events
@@ -732,22 +728,20 @@ class Network:
         # The pre-fault network is common to every parallel seq file, it is computed in the main
 
         # Derive during fault network
-        during_fault_network = self.duplicate()
         relevant_fault_event = False
         for fault in self._failure_events:
-            relevant_fault_event += fault.apply_to_network(during_fault_network)
+            relevant_fault_event += fault.apply_to_network(self)
         # If all the failure events happen on disconnected element, then cancel the entire execution
         # However, if any of the failures happens on a live element, continue the computation
         if not relevant_fault_event:
             raise IOError("Failure events happening on disconnected elements, cancelling execution")
 
-        self._simplified_networks[NetworkState.DURING_FAULT] = during_fault_network.get_simplified_network()
+        self._simplified_networks[NetworkState.DURING_FAULT] = self.get_simplified_network()
 
         # Derive post fault network
-        post_fault_network = during_fault_network
         for mitigation in self._mitigation_events:
             try:
-                mitigation.apply_to_network(post_fault_network)
+                mitigation.apply_to_network(self)
             # If a mitigation event happens on an open line is inconsequential
             except IOError:
                 pass
@@ -755,7 +749,7 @@ class Network:
                 print("Warning: opening a circuit breaker that is already open is impossible")
                 pass
 
-        self._simplified_networks[NetworkState.POST_FAULT] = post_fault_network.get_simplified_network()
+        self._simplified_networks[NetworkState.POST_FAULT] = self.get_simplified_network()
 
     def get_disconnected_buses(self, state: NetworkState):
         """

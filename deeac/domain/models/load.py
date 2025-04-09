@@ -26,8 +26,8 @@ class Load:
 
         :param name: Name of the load.
         :param bus: Bus to which the load is connected.
-        :param active_power_pu: Active power at the load. Unit: MW.
-        :param reactive_power_pu: Reactive power at the load. unit: MVAr.
+        :param active_power: Active power at the load. Unit: MW.
+        :param reactive_power: Reactive power at the load. unit: MVAr.
         :param connected: True if the load is connected to the network, False othetwise.
         """
         self.name = name

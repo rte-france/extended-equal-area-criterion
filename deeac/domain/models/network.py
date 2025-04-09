@@ -63,8 +63,6 @@ class Network:
         :param breakers: List of the breakers that couple buses in the network.
         :param frequency: Frequency for this network (50Hz in Europe, default value). unit: Hz.
         """
-        self.buses = buses
-        self._breakers = breakers
         if frequency is None:
             self.frequency = 50
         else:
@@ -73,6 +71,9 @@ class Network:
         # Events to produce during and post-fault networks
         self._failure_events = []
         self._mitigation_events = []
+
+        self.buses = buses
+        self._breakers = breakers
 
         # Different simplified versions of the network, with the buses that were discarded in graph analysis
         self._simplified_networks = {
@@ -432,7 +433,6 @@ class Network:
                     generator_type = GeneratorType.PV if generator.regulating else GeneratorType.PQ
                 # Compute base voltage and resistance for per unit conversions
                 base_voltage = bus.base_voltage
-                pu_base_voltage = PUBase(value=base_voltage, unit=Unit.KV)
                 pu_base_reactance = base_voltage ** 2 / BASE_POWER
 
                 # Get load flow data

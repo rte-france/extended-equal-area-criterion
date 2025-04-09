@@ -109,7 +109,7 @@ class Line:
 
         :return: Line reactance (Ohm)
         """
-        return self.reactance_pu * self._base_impedance
+        return self._reactance_pu * self._base_impedance
 
     @property
     def shunt_conductance(self) -> float:

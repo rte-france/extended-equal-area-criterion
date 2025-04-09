@@ -46,10 +46,10 @@ class Bus:
         :param type: Type of the bus. If None, the type is derived from the connected generators.
         """
         self.name = name
-        self.branches = []
-        self.generators = []
-        self.loads = []
-        self.capacitor_banks = []
+        self.branches = set()
+        self.generators = set()
+        self.loads = set()
+        self.capacitor_banks = set()
         self.base_voltage = base_voltage
         self._type = type
         self._voltage_magnitude_pu = voltage_magnitude / base_voltage
@@ -174,7 +174,7 @@ class Bus:
 
         :param generator: Generator to add.
         """
-        self.generators.append(generator)
+        self.generators.add(generator)
 
     def add_load(self, load: Load):
         """
@@ -182,7 +182,7 @@ class Bus:
 
         :param load: Load to add.
         """
-        self.loads.append(load)
+        self.loads.add(load)
 
     def add_capacitor_bank(self, capacitor_bank: CapacitorBank):
         """
@@ -190,7 +190,7 @@ class Bus:
 
         :param capacitor_bank: Capacitor bank to add.
         """
-        self.capacitor_banks.append(capacitor_bank)
+        self.capacitor_banks.add(capacitor_bank)
 
     def add_branch(self, branch: Branch):
         """
@@ -198,7 +198,7 @@ class Bus:
 
         :param branch: Branch to add.
         """
-        self.branches.append(branch)
+        self.branches.add(branch)
 
     def couple_to_bus(self, bus: 'Bus'):
         """
@@ -242,16 +242,16 @@ class Bus:
                 branch.first_bus = self
             else:
                 branch.second_bus = self
-            self.branches.append(branch)
+            self.branches.add(branch)
         for generator in bus.generators:
             generator.bus = self
-            self.generators.append(generator)
+            self.generators.add(generator)
         for load in bus.loads:
             load.bus = self
-            self.loads.append(load)
+            self.loads.add(load)
         for bank in bus.capacitor_banks:
             bank.bus = self
-            self.capacitor_banks.append(bank)
+            self.capacitor_banks.add(bank)
         if bus.type == BusType.SLACK or (bus.type == BusType.PV and self.type != BusType.SLACK):
             self._type = bus.type
 

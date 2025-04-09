@@ -862,11 +862,11 @@ class Network:
 
         analyzed_branches = set()
         for bus in network.buses:
-            branches = list()
+            branches = set()
             for branch in bus.branches:
                 if branch in analyzed_branches:
                     # Branch already considered
-                    branches.append(branch)
+                    branches.add(branch)
                     continue
                 # Remove opened branches and branches whose at least one of the extremities is not in the set of
                 # connected buses
@@ -882,7 +882,7 @@ class Network:
                             elements[parallel_id] = branch.parallel_elements[parallel_id]
                     branch.parallel_elements = elements
                     analyzed_branches.add(branch)
-                    branches.append(branch)
+                    branches.add(branch)
             bus.branches = branches
 
             # Remove generators and loads that are not connected

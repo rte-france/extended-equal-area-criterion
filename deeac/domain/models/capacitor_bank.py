@@ -13,13 +13,15 @@ import numpy as np
 if TYPE_CHECKING:
     from .bus import Bus
 
+from deeac.domain.models.constants import BASE_POWER
+
 
 class CapacitorBank:
     """
     Capacitor bank in a network.
     """
 
-    def __init__(self, name: str, bus: 'Bus', base_power: float,
+    def __init__(self, name: str, bus: 'Bus',
                  active_power: float, reactive_power: float):
         """
         Initialize a load.
@@ -31,9 +33,8 @@ class CapacitorBank:
         """
         self.name = name
         self._bus = bus
-        self._base_power = base_power
-        self._active_power_pu = active_power / base_power
-        self._reactive_power_pu = reactive_power / base_power
+        self._active_power_pu = active_power / BASE_POWER
+        self._reactive_power_pu = reactive_power / BASE_POWER
 
         # Compute properties
         self.compute_admittance()
@@ -102,7 +103,7 @@ class CapacitorBank:
 
         :return: The active power in MW.
         """
-        return self._active_power_pu * self._base_power
+        return self._active_power_pu * BASE_POWER
 
     @property
     def reactive_power(self) -> float:
@@ -111,4 +112,4 @@ class CapacitorBank:
 
         :return: The active power in MW.
         """
-        return self._reactive_power_pu * self._base_power
+        return self._reactive_power_pu * BASE_POWER

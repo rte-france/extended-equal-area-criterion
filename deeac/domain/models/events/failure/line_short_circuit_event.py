@@ -122,7 +122,6 @@ class LineShortCircuitEvent(FailureEvent):
                     FictiveLoad(
                         name=f"FICT_LOAD_{self.parallel_id}_{second_bus_name}_{first_bus_name}",
                         bus=branch.first_bus,
-                        base_power=network.base_power.to_unit(Unit.MVA),
                         admittance=load_admittance
                     )
                 )
@@ -136,7 +135,6 @@ class LineShortCircuitEvent(FailureEvent):
                     FictiveLoad(
                         name=f"FICT_LOAD_{self.parallel_id}_{first_bus_name}_{second_bus_name}",
                         bus=branch.second_bus,
-                        base_power=network.base_power.to_unit(Unit.MVA),
                         admittance=load_admittance
                     )
                 )

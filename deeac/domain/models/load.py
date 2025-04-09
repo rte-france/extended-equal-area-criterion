@@ -13,13 +13,15 @@ import numpy as np
 if TYPE_CHECKING:
     from .bus import Bus
 
+from deeac.domain.models.constants import BASE_POWER
+
 
 class Load:
     """
     Load in a network.
     """
 
-    def __init__(self, name: str, bus: 'Bus', base_power: float,
+    def __init__(self, name: str, bus: 'Bus',
                  active_power: float, reactive_power: float, connected: bool = True):
         """
         Initialize a load.
@@ -32,9 +34,8 @@ class Load:
         """
         self.name = name
         self._bus = bus
-        self._base_power = base_power
-        self._active_power_pu = active_power / base_power
-        self._reactive_power_pu = reactive_power / base_power
+        self._active_power_pu = active_power / BASE_POWER
+        self._reactive_power_pu = reactive_power / BASE_POWER
         self.connected = connected
 
         # Compute properties
@@ -66,7 +67,7 @@ class Load:
 
         :return: The active power in MW.
         """
-        return self._active_power_pu * self._base_power
+        return self._active_power_pu * BASE_POWER
 
     @property
     def reactive_power(self) -> float:
@@ -75,7 +76,7 @@ class Load:
 
         :return: The active power in MW.
         """
-        return self._reactive_power_pu * self._base_power
+        return self._reactive_power_pu * BASE_POWER
 
     @property
     def complex_power_pu(self) -> complex:
@@ -118,7 +119,7 @@ class FictiveLoad(Load):
     Fictive load with a specific admittance used to model a fault on a line or a bus.
     This kind of load is associated to active and reactive powers equal to 0.
     """
-    def __init__(self, name: str, bus: 'Bus', base_power: float, admittance: complex, connected: bool = True):
+    def __init__(self, name: str, bus: 'Bus', admittance: complex, connected: bool = True):
         """
         Initialize a load.
 
@@ -130,7 +131,6 @@ class FictiveLoad(Load):
         super().__init__(
             name=name,
             bus=bus,
-            base_power=base_power,
             active_power=0,
             reactive_power=0,
             connected=connected

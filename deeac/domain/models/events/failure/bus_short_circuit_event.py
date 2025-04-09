@@ -75,7 +75,6 @@ class BusShortCircuitEvent(FailureEvent):
         bus.add_load(FictiveLoad(
             name=f"FICT_LOAD_{bus.name}",
             bus=bus,
-            base_power=network.base_power.to_unit(Unit.MVA),
             admittance=admittance)
         )
 

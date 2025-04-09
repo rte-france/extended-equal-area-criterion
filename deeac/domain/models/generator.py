@@ -19,6 +19,8 @@ if TYPE_CHECKING:
     from .bus import Bus
     from .network import NetworkState
 
+from deeac.domain.models.constants import BASE_POWER
+
 
 class GeneratorType(Enum):
     PQ = "PQ"
@@ -50,7 +52,7 @@ class Generator:
 
     def __init__(
         self, name: str, type: GeneratorType, bus: 'Bus',
-        pu_base_reactance, base_power,
+        pu_base_reactance,
         direct_transient_reactance: float, inertia_constant: float,
         active_power: float, max_active_power: float,
         reactive_power: float,
@@ -76,14 +78,13 @@ class Generator:
         self._bus = bus
 
         self._pu_base_reactance = pu_base_reactance
-        self._base_power = base_power
 
         self._direct_transient_reactance_pu = direct_transient_reactance / pu_base_reactance
         self._inertia_constant = inertia_constant
 
-        self._active_power_pu = active_power / base_power
-        self._max_active_power_pu = max_active_power / base_power
-        self._reactive_power_pu = reactive_power / base_power
+        self._active_power_pu = active_power / BASE_POWER
+        self._max_active_power_pu = max_active_power / BASE_POWER
+        self._reactive_power_pu = reactive_power / BASE_POWER
 
         self.connected = connected
         self.source = source
@@ -159,7 +160,7 @@ class Generator:
         """
         Return the maximum active power in MW.
         """
-        return self._max_active_power_pu * self._base_power
+        return self._max_active_power_pu * BASE_POWER
 
     @property
     def active_power_pu(self) -> float:
@@ -175,7 +176,7 @@ class Generator:
 
         :return: The active power value in MW.
         """
-        return self._active_power_pu * self._base_power
+        return self._active_power_pu * BASE_POWER
 
     @property
     def reactive_power(self) -> float:
@@ -184,7 +185,7 @@ class Generator:
 
         :return: The reactive power value in MVAr.
         """
-        return self._reactive_power_pu * self._base_power
+        return self._reactive_power_pu * BASE_POWER
 
     @property
     def direct_transient_reactance_pu(self) -> float:

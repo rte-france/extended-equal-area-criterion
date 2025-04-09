@@ -22,6 +22,7 @@ from deeac.domain.services.critical_clusters_identifier import (
 from deeac.domain.models import Network, DynamicGenerator, GeneratorCluster, Value, Unit, PUBase
 from deeac.domain.services.factories import CriticalClustersIdentifierFactory
 import deeac.domain.ports.dtos.eeac_tree as node_dtos
+from deeac.domain.models.constants import BASE_POWER
 
 
 # Mapping between critical clusters identifiers and their types
@@ -164,8 +165,7 @@ class CriticalClustersIdentifierNode(EEACTreeNode):
         # Get minimum aggregated power
         min_cluster_power = None
         if self._min_cluster_power is not None:
-            base_power = self._inputs.network.base_power.to_unit(Unit.MVA)
-            min_cluster_power = self._min_cluster_power / base_power
+            min_cluster_power = self._min_cluster_power / BASE_POWER
 
         if self._tso_customization == "RTE":
             # Create critical clusters identifier

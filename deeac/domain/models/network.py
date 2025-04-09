@@ -38,6 +38,8 @@ from .matrices import AdmittanceMatrix
 if TYPE_CHECKING:
     from .events import Event
 
+from deeac.domain.models.constants import BASE_POWER
+
 
 class NetworkState(Enum):
     """
@@ -53,18 +55,16 @@ class Network:
     Distribution network
     """
 
-    def __init__(self, buses: List[Bus], breakers: List[ParallelBreakers], base_power: float, frequency: float = None):
+    def __init__(self, buses: List[Bus], breakers: List[ParallelBreakers], frequency: float = None):
         """
         Initialize a topology with a list of its buses.
 
         :param buses: List of the buses in the topology.
         :param breakers: List of the breakers that couple buses in the network.
-        :param base_power: System base power. Unit: MVA.
         :param frequency: Frequency for this network (50Hz in Europe, default value). unit: Hz.
         """
         self.buses = buses
         self._breakers = breakers
-        self.base_power = base_power
         if frequency is None:
             self.frequency = 50
         else:
@@ -382,11 +382,6 @@ class Network:
         # Collector for the exceptions that may occur
         exception_collector = DEEACExceptionCollector()
 
-        # Base power in MVA for per unit conversions
-        with exception_collector:
-            base_power = Value.from_dto(network_topology.base_power).to_unit(Unit.MVA)
-        exception_collector.raise_for_exception()
-
         # Create first the buses
         buses = {}
         for bus in network_topology.buses:
@@ -441,7 +436,7 @@ class Network:
                 # Compute base voltage and resistance for per unit conversions
                 base_voltage = bus.base_voltage
                 pu_base_voltage = PUBase(value=base_voltage, unit=Unit.KV)
-                pu_base_reactance = base_voltage ** 2 / base_power
+                pu_base_reactance = base_voltage ** 2 / BASE_POWER
 
                 # Get load flow data
                 try:
@@ -460,7 +455,7 @@ class Network:
                     reactive_power = 0
 
                 # Convert inertia constant to system-based
-                inertia_constant = Value.from_dto(generator.inertia_constant).to_unit(Unit.MWS_PER_MVA) / base_power
+                inertia_constant = Value.from_dto(generator.inertia_constant).to_unit(Unit.MWS_PER_MVA) / BASE_POWER
 
                 # Minimum and maximum powers
                 max_active_power = Value.from_dto(generator.max_active_power).to_unit(Unit.MW)
@@ -477,7 +472,6 @@ class Network:
                         source=generator_source,
                         bus=bus,
                         pu_base_reactance=pu_base_reactance,
-                        base_power=base_power,
                         direct_transient_reactance=Value.from_dto(generator.direct_transient_reactance).to_unit(Unit.OHM),
                         inertia_constant=inertia_constant,
                         active_power=active_power,
@@ -511,7 +505,6 @@ class Network:
                     Load(
                         name=load.name,
                         bus=bus,
-                        base_power=base_power,
                         active_power=Value.from_dto(load_data.active_power).to_unit(Unit.MW),
                         reactive_power=Value.from_dto(load_data.reactive_power).to_unit(Unit.MVAR),
                         connected=load.connected
@@ -527,7 +520,6 @@ class Network:
                     CapacitorBank(
                         name=bank.name,
                         bus=bus,
-                        base_power=base_power,
                         active_power=Value.from_dto(bank.active_power).to_unit(Unit.MW),
                         reactive_power=-1 * Value.from_dto(bank.reactive_power).to_unit(Unit.MVAR)
                     )
@@ -553,7 +545,6 @@ class Network:
                     CapacitorBank(
                         name=svc.name,
                         bus=bus,
-                        base_power=base_power,
                         active_power=0,
                         reactive_power=reactive_power
                     )
@@ -585,7 +576,6 @@ class Network:
                     Load(
                         name=hvdc_converter.name,
                         bus=bus,
-                        base_power=base_power,
                         active_power=active_power,
                         reactive_power=reactive_power,
                         connected=hvdc_converter.connected
@@ -624,7 +614,7 @@ class Network:
                     # Compute base for per unit conversions
                     sending_bus_base_voltage = first_bus.base_voltage
                     receiving_bus_base_voltage = second_bus.base_voltage
-                    base_impedance = sending_bus_base_voltage * receiving_bus_base_voltage / base_power
+                    base_impedance = sending_bus_base_voltage * receiving_bus_base_voltage / BASE_POWER
                     # Create line model
                     branch[parallel_id] = Line(
                         base_impedance=base_impedance,
@@ -722,7 +712,6 @@ class Network:
         return cls(
             buses=list(buses.values()),
             breakers=breakers,
-            base_power=Value.from_dto(network_topology.base_power)
         )
 
     def provide_events(self, failure_events: List['Event'], mitigation_events: List['Event']) -> bool:
@@ -927,7 +916,7 @@ class Network:
                 fictive_buses.append(fictive_generator_bus)
                 # Create a branch between fictive and real buses with a single line whose reactance if the generator
                 # direct transient reactance
-                base_impedance = base_voltage ** 2 / network.base_power.to_unit(Unit.MVA)
+                base_impedance = base_voltage ** 2 / BASE_POWER
                 branch = Branch(fictive_generator_bus, bus)
                 fictive_generator_line = Line(
                     base_impedance=base_impedance,
@@ -945,7 +934,7 @@ class Network:
                 bus.generators.clear()
         network.buses += fictive_buses
 
-        return SimplifiedNetwork(buses=network.buses, base_power=network.base_power), disconnected_buses
+        return SimplifiedNetwork(buses=network.buses), disconnected_buses
 
     def _compute_generator_voltage_amplitude_product(self):
         """
@@ -1236,14 +1225,13 @@ class SimplifiedNetwork(Network):
     Distribution network without any breaker.
     """
 
-    def __init__(self, buses: List[Bus], base_power: float):
+    def __init__(self, buses: List[Bus]):
         """
         Initialize with a list of its buses.
 
         :param buses: List of the buses in the topology.
-        :param base_power: System base power.
         """
-        super().__init__(buses=buses, breakers=[], base_power=base_power)
+        super().__init__(buses=buses, breakers=[])
         self._admittance_matrix = None
 
     @property

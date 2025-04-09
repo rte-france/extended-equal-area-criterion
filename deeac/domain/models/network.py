@@ -84,9 +84,6 @@ class Network:
         # Get generators to avoid expensive operations
         self._generators = [generator for bus in buses for generator in bus.generators]
 
-        # Create bus coupling map
-        self._bus_coupling_map = self._build_bus_coupling_map()
-
         # Results to store
         self._generator_voltage_product_amplitudes = self._compute_generator_voltage_amplitude_product()
 

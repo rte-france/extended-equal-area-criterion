@@ -102,18 +102,19 @@ class AdmittanceMatrix(BusMatrix):
                         shunt_admittance = element.shunt_admittance
                         if element.transformer_type == 8:  # TODO must not be present here!
                             ratio = cmath.rect(element.ratio, element.phase_shift_angle)
-                            sending_shunt_admittance = np.conj(ratio) * (ratio - 1) / impedance + ratio ** 2 * shunt_admittance
+                            ratio_conj = np.conj(ratio)
+                            sending_shunt_admittance = ratio_conj * (ratio - 1) / impedance + ratio ** 2 * shunt_admittance
                             receiving_shunt_admittance = (1 - ratio) / impedance
                             admittance = element.admittance
                             if element.sending_node == bus.name:
-                                branch_admittance_i += admittance * np.conj(ratio)
+                                branch_admittance_i += admittance * ratio_conj
                                 branch_admittance_j += admittance * ratio
-                                admittance_sum_i += admittance * np.conj(ratio) + sending_shunt_admittance
+                                admittance_sum_i += admittance * ratio_conj + sending_shunt_admittance
                                 admittance_sum_j += admittance * ratio + receiving_shunt_admittance
                             else:
-                                branch_admittance_j += admittance * np.conj(ratio)
+                                branch_admittance_j += admittance * ratio_conj
                                 branch_admittance_i += admittance * ratio
-                                admittance_sum_j += admittance * np.conj(ratio) + sending_shunt_admittance
+                                admittance_sum_j += admittance * ratio_conj + sending_shunt_admittance
                                 admittance_sum_i += admittance * ratio + receiving_shunt_admittance
 
                         else:

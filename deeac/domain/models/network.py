@@ -202,12 +202,6 @@ class Network:
         """
         return self._breakers
 
-    def get_bus_coupling_map(self) -> DefaultDict[Bus, Set[Bus]]:
-        """
-        Get a copy of the bus coupling map
-        """
-        return self._bus_coupling_map
-
     def get_generator_voltage_product_amplitudes(self) -> DefaultDict:
         """
         Get the generator voltage amplitude products
@@ -295,30 +289,6 @@ class Network:
             # Generator not found
             raise ElementNotFoundException(generator_name, Generator.__name__)
 
-    def get_coupled_buses(self, bus: Bus) -> Set[Bus]:
-        """
-        Get the set of buses that are coupled with a breaker to the specified bus.
-
-        :param bus: The bus to which the other buses must be coupled.
-        :return: The set of buses coupled to the specified bus, including the input bus.
-        """
-        coupled_buses = {bus}
-        buses = {bus}
-        while buses:
-            current_buses = buses
-            buses = set()
-            for current_bus in current_buses:
-                if current_bus not in self._bus_coupling_map:
-                    # Bus is not coupled
-                    continue
-                for coupled_bus in self._bus_coupling_map[current_bus]:
-                    # Bus is coupled with another one
-                    if coupled_bus not in coupled_buses:
-                        # Bus not already considered
-                        coupled_buses.add(coupled_bus)
-                        buses.add(coupled_bus)
-        return coupled_buses
-
     def change_breaker_position(self, first_bus_name: str, second_bus_name: str, parallel_id: int, closed: bool):
         """
         Change a breaker in the network.
@@ -340,16 +310,6 @@ class Network:
             # Breaker is already in the expected state.
             return
         breaker.closed = closed
-
-        # Update coupling map
-        first_bus = parallel_breakers.first_bus
-        second_bus = parallel_breakers.second_bus
-        if closed:
-            self._bus_coupling_map[first_bus].add(second_bus)
-            self._bus_coupling_map[second_bus].add(first_bus)
-        else:
-            self._bus_coupling_map[first_bus].remove(second_bus)
-            self._bus_coupling_map[second_bus].remove(first_bus)
 
     @classmethod
     def create_network(
@@ -962,24 +922,6 @@ class Network:
             angle = phase(admittance)
             admittances[(bus1_name, bus2_name)] = (amplitude, angle)
             return amplitude, angle
-
-    def _build_bus_coupling_map(self) -> DefaultDict[Bus, Set[Bus]]:
-        """
-        Create a map describing how buses are coupled.
-        Each bus of the map is associaed the list of the other buses to which it is coupled.
-
-        :return: The cooupling map.
-        """
-        coupling_map = defaultdict(set)
-        for breaker in self.breakers:
-            if not breaker.closed:
-                # Breaker is opened
-                continue
-            first_bus = breaker.first_bus
-            second_bus = breaker.second_bus
-            coupling_map[first_bus].add(second_bus)
-            coupling_map[second_bus].add(first_bus)
-        return coupling_map
 
     @staticmethod
     def _get_buses_in_perimeter(bus: Bus, diameter: int) -> Set[Bus]:

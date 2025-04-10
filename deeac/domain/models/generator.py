@@ -52,7 +52,6 @@ class Generator:
 
     def __init__(
         self, name: str, type: GeneratorType, bus: 'Bus',
-        pu_base_reactance,
         direct_transient_reactance: float, inertia_constant: float,
         active_power: float, max_active_power: float,
         reactive_power: float,
@@ -77,9 +76,8 @@ class Generator:
         self.type = type
         self._bus = bus
 
-        self._pu_base_reactance = pu_base_reactance
-
-        self._direct_transient_reactance_pu = direct_transient_reactance / pu_base_reactance
+        base_reactance = bus.base_voltage ** 2 / BASE_POWER
+        self._direct_transient_reactance_pu = direct_transient_reactance / base_reactance
         self._inertia_constant = inertia_constant
 
         self._active_power_pu = active_power / BASE_POWER
@@ -209,7 +207,8 @@ class Generator:
         """
         if not self.connected:
             raise DisconnectedElementException(repr(self), Generator.__name__)
-        return self._direct_transient_reactance_pu * self._pu_base_reactance
+        base_reactance = self.bus.base_voltage ** 2 / BASE_POWER
+        return self._direct_transient_reactance_pu * base_reactance
 
     @property
     def direct_transient_admittance(self) -> complex:

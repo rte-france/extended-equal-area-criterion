@@ -208,14 +208,6 @@ class Network:
         """
         return self._bus_coupling_map
 
-    def get_pre_fault_simplified_network(self):
-        """
-        Get the simplified version of the pre fault network state
-        Note that the return type isn't specified because the SimplifiedNetwork type is defined later
-        as it inherits the Network class
-        """
-        return self._simplified_networks[NetworkState.PRE_FAULT]
-
     def get_generator_voltage_product_amplitudes(self) -> DefaultDict:
         """
         Get the generator voltage amplitude products
@@ -431,9 +423,6 @@ class Network:
                     generator_type = GeneratorType.SLACK
                 else:
                     generator_type = GeneratorType.PV if generator.regulating else GeneratorType.PQ
-                # Compute base voltage and resistance for per unit conversions
-                base_voltage = bus.base_voltage
-                pu_base_reactance = base_voltage ** 2 / BASE_POWER
 
                 # Get load flow data
                 try:
@@ -468,7 +457,6 @@ class Network:
                         type=generator_type,
                         source=generator_source,
                         bus=bus,
-                        pu_base_reactance=pu_base_reactance,
                         direct_transient_reactance=Value.from_dto(generator.direct_transient_reactance).to_unit(Unit.OHM),
                         inertia_constant=inertia_constant,
                         active_power=active_power,

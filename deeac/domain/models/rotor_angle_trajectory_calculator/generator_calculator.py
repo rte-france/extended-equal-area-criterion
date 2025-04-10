@@ -143,13 +143,10 @@ class GeneratorRotorAnglesTrajectoryCalculator(ABC):
         time_sequence = [GeneratorTrajectoryTime(network_state=self._during_state, time=0)]
         # During-fault
         during_fault_interval = transition_time / number_during_fault_intervals
-        for i in range(number_during_fault_intervals - 1):
-            time_sequence.append(
-                GeneratorTrajectoryTime(
-                    network_state=self._during_state,
-                    time=(i + 1) * during_fault_interval
-                )
-            )
+        time_sequence.extend(
+            GeneratorTrajectoryTime(network_state=self._during_state, time=(i + 1) * during_fault_interval)
+            for i in range(number_during_fault_intervals - 1)
+        )
 
         # Add transition time
         if self._transition_time_shift > 0:
@@ -165,13 +162,11 @@ class GeneratorRotorAnglesTrajectoryCalculator(ABC):
 
         # Post-fault
         post_fault_interval = (last_update_time - transition_time) / number_post_fault_intervals
-        for i in range(number_post_fault_intervals - 1):
-            time_sequence.append(
-                GeneratorTrajectoryTime(
-                    network_state=self._post_state,
-                    time=transition_time + (i + 1) * post_fault_interval
-                )
-            )
+        time_sequence.extend(
+            GeneratorTrajectoryTime(network_state=self._post_state,
+                                    time=transition_time + (i + 1) * post_fault_interval)
+            for i in range(number_post_fault_intervals - 1)
+        )
         # Add last update time
         time_sequence.append(GeneratorTrajectoryTime(network_state=self._post_state, time=last_update_time))
         return time_sequence

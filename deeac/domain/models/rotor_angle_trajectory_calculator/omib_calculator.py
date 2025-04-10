@@ -123,7 +123,6 @@ class OMIBRotorAngleTrajectoryCalculator(ABC):
         :return: List of the times associated to the specified angles.
         """
         if not angles:
-            # Empy list
             return []
 
         # Shift transition angle

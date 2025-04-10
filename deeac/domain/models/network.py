@@ -9,6 +9,7 @@
 
 from cmath import phase, pi
 from functools import lru_cache
+from itertools import chain
 
 import numpy as np
 import networkx as nx
@@ -764,40 +765,39 @@ class Network:
                 update_references(bus_map, second_bus, first_bus)
                 coupled_buses[second_bus] = first_bus
                 bus_map[first_bus].append(second_bus)
+
         # Remove buses that were coupled to another one
-        network.buses = [bus for bus in network.buses if bus not in coupled_buses]
+        network_buses_short = [bus for bus in network.buses if bus not in coupled_buses]
         # No breaker in the simplified network as buses were merged
         network.breakers.clear()
 
         # Get graph corresponding to network where nodes are buses and vertices are branches
+        edges = [
+            (branch.first_bus.name, branch.second_bus.name)
+            for bus in network_buses_short
+            for branch in bus.branches
+            if branch.closed
+        ]
         network_graph = nx.Graph()
-        edges = []
-        for bus in network.buses:
-            for branch in bus.branches:
-                if branch.closed:
-                    edges.append((branch.first_bus.name, branch.second_bus.name))
         network_graph.add_edges_from(edges)
 
         # Get the largest set of connected buses
         connected_buses = max(nx.connected_components(network_graph), key=len)
-        disconnected_buses = []
-        buses = []
-        for bus in network.buses:
-            if bus.name in connected_buses:
-                buses.append(bus)
-            else:
-                disconnected_buses += bus.coupled_bus_names
-        network.buses = buses
+        connected_buses_set = set(connected_buses)
+        disconnected_buses = list(chain.from_iterable(
+            bus.coupled_bus_names for bus in network_buses_short if bus.name not in connected_buses_set
+        ))
+        network_buses_short = [bus for bus in network_buses_short if bus.name in connected_buses_set]
 
         # Raise an error if more than one slack bus is connected
-        slack_bus_names = [bus.name for bus in network.buses if bus.type == BusType.SLACK]
+        slack_bus_names = [bus.name for bus in network_buses_short if bus.type == BusType.SLACK]
         if len(slack_bus_names) > 1:
             raise MultipleSlackBusException(slack_bus_names)
         if not slack_bus_names:
             raise NoSlackBusException()
 
         analyzed_branches = set()
-        for bus in network.buses:
+        for bus in network_buses_short:
             branches = set()
             for branch in bus.branches:
                 if branch in analyzed_branches:
@@ -811,12 +811,9 @@ class Network:
                     branch.first_bus.name in connected_buses and
                     branch.second_bus.name in connected_buses
                 ):
-                    elements = dict()
-                    for parallel_id in branch.parallel_elements:
-                        # Keep only closed elements
-                        if branch.parallel_elements[parallel_id].closed:
-                            elements[parallel_id] = branch.parallel_elements[parallel_id]
-                    branch.parallel_elements = elements
+                    branch.parallel_elements = {
+                        k: v for k, v in branch.parallel_elements.items() if v.closed
+                    }
                     analyzed_branches.add(branch)
                     branches.add(branch)
             bus.branches = branches
@@ -827,13 +824,13 @@ class Network:
 
         # Add fictive buses for the internal voltage of each generator
         fictive_buses = list()
-        for bus in network.buses:
+        for bus in network_buses_short:
+            base_voltage = bus.base_voltage
             for generator in bus.generators:
                 if not generator.connected or generator.bus.type == BusType.GEN_INT_VOLT:
                     # Consider only connected generators that are not already connected to a fictive bus
                     continue
                 # Create fictive bus for the generator
-                base_voltage = bus.base_voltage
                 internal_voltage = generator.internal_voltage
                 voltage_magnitude = abs(internal_voltage) * base_voltage
                 phase_angle = phase(internal_voltage)
@@ -865,22 +862,26 @@ class Network:
             if bus.type != BusType.GEN_INT_VOLT:
                 # All the generators should be connected to a fictive bus
                 bus.generators.clear()
-        network.buses += fictive_buses
+        network_buses_short += fictive_buses
 
-        return SimplifiedNetwork(buses=network.buses), disconnected_buses
+        return SimplifiedNetwork(buses=network_buses_short), disconnected_buses
 
     def _compute_generator_voltage_amplitude_product(self):
         """
         Compute the product of internal voltage amplitudes for each pair of generators in the network.
         """
-        generator_voltage_product_amplitudes = dict()
-        name_voltage_pairs = [(generator.name, generator.internal_voltage) for generator in self.generators]
-        for n, (name1, voltage1) in enumerate(name_voltage_pairs):
-            for (name2, voltage2) in name_voltage_pairs[n:]:
-                # Compute product
-                product = abs(voltage1 * voltage2)
+        generators = self.generators
+        nb_generators = len(generators)
+        name_voltage = [(g.name, abs(g.internal_voltage)) for g in generators]
+        generator_voltage_product_amplitudes = {}
+        for i in range(nb_generators):
+            name1, voltage1 = name_voltage[i]
+            for j in range(i, nb_generators):
+                name2, voltage2 = name_voltage[j]
+                product = voltage1 * voltage2
                 generator_voltage_product_amplitudes[(name1, name2)] = product
-                generator_voltage_product_amplitudes[(name2, name1)] = product
+                if i != j:
+                    generator_voltage_product_amplitudes[(name2, name1)] = product
         return generator_voltage_product_amplitudes
 
     @lru_cache(maxsize=None)

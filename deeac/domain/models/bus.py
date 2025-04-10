@@ -54,7 +54,7 @@ class Bus:
         self._type = type
         self._voltage_magnitude_pu = voltage_magnitude / base_voltage
         self._phase_angle = phase_angle
-        self._voltage = None
+        self.voltage = cmath.rect(self._voltage_magnitude_pu, self._phase_angle)
 
         # Names of the buses coupled to this bus
         self._coupled_bus_names = {self.name}
@@ -81,23 +81,6 @@ class Bus:
         return: The set of the bus names.
         """
         return self._coupled_bus_names
-
-    @property
-    def voltage(self) -> complex:
-        """
-        Return the voltage at the bus (phasor).
-
-        :return: A phasor corresponding to the voltage at the bus (per unit).
-        :raise: BusVoltageException if the voltage magnitude and/or angle is/are not specified.
-        """
-        if self._voltage is None:
-            if self._voltage_magnitude_pu is None or self._phase_angle is None:
-                raise BusVoltageException(self.name)
-            self._voltage = cmath.rect(
-                self._voltage_magnitude_pu,
-                self._phase_angle
-            )
-        return self._voltage
 
     def update_voltage(self, voltage_magnitude: float, phase_angle: float):
         """

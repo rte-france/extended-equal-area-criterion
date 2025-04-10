@@ -11,7 +11,7 @@ import cmath
 
 import numpy as np
 from typing import List, Dict, Deque, Any
-from collections import deque
+from collections import deque, defaultdict
 from scipy.sparse import linalg, csc_matrix
 from deeac.domain.models import Bus, Generator, Transformer, Line
 from .bus_matrix import BusMatrix
@@ -56,16 +56,6 @@ class AdmittanceMatrix(BusMatrix):
         """
         return self._generator_buses
 
-    @staticmethod
-    def add_to_dict(dictionary: Dict, key: Any, value: Any):
-        """
-        Adds a new value to a dictionary or adds it to a pre-existing value
-        """
-        if key not in dictionary:
-            dictionary[key] = value
-        else:
-            dictionary[key] += value
-
     def _build_matrix(self, buses: Deque[Bus], bus_indexes: Dict[str, int]) -> np.array:
         """
         Build the admittance matrix.
@@ -74,38 +64,40 @@ class AdmittanceMatrix(BusMatrix):
         :param bus_indexes: Index mapping of the buses to use to build the matrix.
         :return: A numpy array with the content of the admittance matrix.
         """
-        sparse_data = dict()
-        # Compute matrix
+        sparse_data = defaultdict(complex)
         dimension = len(bus_indexes)
         considered_branches = set()
+
         for i, bus in enumerate(buses):
             for load in bus.loads:
-                # Diagonal element [y_i]: Add admittance of the loads connected to the bus
-                self.add_to_dict(sparse_data, (i, i), load.admittance)
+                sparse_data[(i, i)] += load.admittance
 
             for bank in bus.capacitor_banks:
-                # Diagonal element [y_i]: Add admittance of the capacitor banks connected to the bus
-                self.add_to_dict(sparse_data, (i, i), bank.admittance)
+                sparse_data[(i, i)] += bank.admittance
 
             for branch in bus.branches:
                 if branch in considered_branches:
-                    # Branch already considered
                     continue
 
                 branch_admittance_j = 0
                 branch_admittance_i = 0
                 admittance_sum_i = 0
                 admittance_sum_j = 0
+
                 for element in branch.parallel_elements.values():
-                    if isinstance(element, Transformer) is True:
+                    if isinstance(element, Transformer):
                         impedance = element.impedance
                         shunt_admittance = element.shunt_admittance
-                        if element.transformer_type == 8:  # TODO must not be present here!
+
+                        if element.transformer_type == 8:
                             ratio = cmath.rect(element.ratio, element.phase_shift_angle)
                             ratio_conj = np.conj(ratio)
-                            sending_shunt_admittance = ratio_conj * (ratio - 1) / impedance + ratio ** 2 * shunt_admittance
+                            ratio_squared = ratio * ratio
+                            sending_shunt_admittance = ratio_conj * (
+                                    ratio - 1) / impedance + ratio_squared * shunt_admittance
                             receiving_shunt_admittance = (1 - ratio) / impedance
                             admittance = element.admittance
+
                             if element.sending_node == bus.name:
                                 branch_admittance_i += admittance * ratio_conj
                                 branch_admittance_j += admittance * ratio
@@ -124,6 +116,7 @@ class AdmittanceMatrix(BusMatrix):
                             branch_admittance_j += admittance
                             sending_shunt_admittance = ratio * (ratio - 1) / impedance
                             receiving_shunt_admittance = (1 - ratio) / impedance + shunt_admittance
+
                             if element.sending_node == bus.name:
                                 admittance_sum_i += admittance + sending_shunt_admittance
                                 admittance_sum_j += admittance + receiving_shunt_admittance
@@ -131,27 +124,23 @@ class AdmittanceMatrix(BusMatrix):
                                 admittance_sum_j += admittance + sending_shunt_admittance
                                 admittance_sum_i += admittance + receiving_shunt_admittance
 
-                    elif isinstance(element, Line) is True:
+                    elif isinstance(element, Line):
                         admittance_with_shunt = element.admittance_pu + element.shunt_admittance_pu / 2
-                        branch_admittance_j += element.admittance_pu
                         branch_admittance_i += element.admittance_pu
+                        branch_admittance_j += element.admittance_pu
                         admittance_sum_i += admittance_with_shunt
                         admittance_sum_j += admittance_with_shunt
                     else:
                         raise ValueError(f"Unknown element type {type(element)}")
 
-                # Diagonal element [sum(y_ik) with k != i]: Add admittance and shunt-admittance of connected branches
                 considered_branches.add(branch)
-
-                # Get connected bus and its index
                 connected_bus = branch.first_bus if branch.first_bus != bus else branch.second_bus
                 j = bus_indexes[connected_bus.name]
 
-                self.add_to_dict(sparse_data, (i, i), admittance_sum_i)
-                self.add_to_dict(sparse_data, (j, j), admittance_sum_j)
-
-                self.add_to_dict(sparse_data, (i, j), - branch_admittance_i)
-                self.add_to_dict(sparse_data, (j, i), - branch_admittance_j)
+                sparse_data[(i, i)] += admittance_sum_i
+                sparse_data[(j, j)] += admittance_sum_j
+                sparse_data[(i, j)] -= branch_admittance_i
+                sparse_data[(j, i)] -= branch_admittance_j
 
         rows = [index[0] for index in sparse_data.keys()]
         columns = [index[1] for index in sparse_data.keys()]

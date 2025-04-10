@@ -12,7 +12,7 @@ import cmath
 import numpy as np
 from typing import List, Dict, Deque, Any
 from collections import deque, defaultdict
-from scipy.sparse import linalg, csc_matrix
+from scipy.sparse import linalg, coo_matrix
 from deeac.domain.models import Bus, Generator, Transformer, Line
 from .bus_matrix import BusMatrix
 
@@ -62,18 +62,28 @@ class AdmittanceMatrix(BusMatrix):
 
         :param buses: List of buses sorted so that buses connected to a generator appear first.
         :param bus_indexes: Index mapping of the buses to use to build the matrix.
-        :return: A numpy array with the content of the admittance matrix.
+        :return: A numpy sparse matrix (csc) with the content of the admittance matrix.
         """
-        sparse_data = defaultdict(complex)
+        data = []
+        rows = []
+        cols = []
         dimension = len(bus_indexes)
         considered_branches = set()
 
         for i, bus in enumerate(buses):
-            for load in bus.loads:
-                sparse_data[(i, i)] += load.admittance
+            loads = bus.loads
+            capacitor_banks = bus.capacitor_banks
+            bus_name = bus.name
 
-            for bank in bus.capacitor_banks:
-                sparse_data[(i, i)] += bank.admittance
+            for load in loads:
+                rows.append(i)
+                cols.append(i)
+                data.append(load.admittance)
+
+            for bank in capacitor_banks:
+                rows.append(i)
+                cols.append(i)
+                data.append(bank.admittance)
 
             for branch in bus.branches:
                 if branch in considered_branches:
@@ -98,7 +108,7 @@ class AdmittanceMatrix(BusMatrix):
                             receiving_shunt_admittance = (1 - ratio) / impedance
                             admittance = element.admittance
 
-                            if element.sending_node == bus.name:
+                            if element.sending_node == bus_name:
                                 branch_admittance_i += admittance * ratio_conj
                                 branch_admittance_j += admittance * ratio
                                 admittance_sum_i += admittance * ratio_conj + sending_shunt_admittance
@@ -108,7 +118,6 @@ class AdmittanceMatrix(BusMatrix):
                                 branch_admittance_i += admittance * ratio
                                 admittance_sum_j += admittance * ratio_conj + sending_shunt_admittance
                                 admittance_sum_i += admittance * ratio + receiving_shunt_admittance
-
                         else:
                             ratio = element.ratio
                             admittance = element.admittance * ratio
@@ -117,7 +126,7 @@ class AdmittanceMatrix(BusMatrix):
                             sending_shunt_admittance = ratio * (ratio - 1) / impedance
                             receiving_shunt_admittance = (1 - ratio) / impedance + shunt_admittance
 
-                            if element.sending_node == bus.name:
+                            if element.sending_node == bus_name:
                                 admittance_sum_i += admittance + sending_shunt_admittance
                                 admittance_sum_j += admittance + receiving_shunt_admittance
                             else:
@@ -134,17 +143,23 @@ class AdmittanceMatrix(BusMatrix):
                         raise ValueError(f"Unknown element type {type(element)}")
 
                 considered_branches.add(branch)
-                connected_bus = branch.first_bus if branch.first_bus != bus else branch.second_bus
+
+                first_bus = branch.first_bus
+                second_bus = branch.second_bus
+                connected_bus = first_bus if first_bus != bus else second_bus
                 j = bus_indexes[connected_bus.name]
 
-                sparse_data[(i, i)] += admittance_sum_i
-                sparse_data[(j, j)] += admittance_sum_j
-                sparse_data[(i, j)] -= branch_admittance_i
-                sparse_data[(j, i)] -= branch_admittance_j
+                rows.extend([i, j])
+                cols.extend([i, j])
+                data.extend([admittance_sum_i, admittance_sum_j])
 
-        rows = [index[0] for index in sparse_data.keys()]
-        columns = [index[1] for index in sparse_data.keys()]
-        return csc_matrix((list(sparse_data.values()), (rows, columns)), shape=(dimension, dimension), dtype=complex)
+                rows.extend([i, j])
+                cols.extend([j, i])
+                data.extend([-branch_admittance_i, -branch_admittance_j])
+
+        # Build the sparse matrix using COO format, then convert to CSC
+        return coo_matrix((data, (rows, cols)), shape=(dimension, dimension), dtype=complex).tocsc()
+
 
     @property
     def reduction(self) -> 'ReducedAdmittanceMatrix':

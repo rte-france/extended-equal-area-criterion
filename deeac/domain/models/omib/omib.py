@@ -266,6 +266,7 @@ class OMIB(ABC):
         try:
             non_critical_inertia_ratio = self._non_critical_cluster.total_inertia / self.total_inertia
             critical_inertia_ratio = self._critical_cluster.total_inertia / self.total_inertia
+            inertia_ratio_difference = non_critical_inertia_ratio - critical_inertia_ratio
         except ZeroDivisionError:
             raise OMIBInertiaException(self)
 
@@ -338,12 +339,11 @@ class OMIB(ABC):
                         second_constant_terms[1] += conductance_sine_term
 
             # Compute first and second constants implied in maximum electric power and angle shift
-            inertia_ratio_difference = non_critical_inertia_ratio - critical_inertia_ratio
             first_constant = first_constant_terms[0] + first_constant_terms[1] * inertia_ratio_difference
             second_constant = second_constant_terms[0] - second_constant_terms[1] * inertia_ratio_difference
 
             # Compute maximum electric power
-            self._maximum_electric_powers[(state, update_time)] = (first_constant ** 2 + second_constant ** 2) ** .5
+            self._maximum_electric_powers[(state, update_time)] = np.sqrt(first_constant ** 2 + second_constant ** 2)
 
             # Compute angle shift
             try:

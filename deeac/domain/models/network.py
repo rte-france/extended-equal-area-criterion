@@ -214,12 +214,6 @@ class Network:
         """
         return self._generator_voltage_product_amplitudes
 
-    def get_pre_fault_admittances(self) -> AdmittanceMatrix:
-        """
-        Get the pre fault admittance matrix
-        """
-        return self._admittances[NetworkState.PRE_FAULT]
-
     def get_bus(self, bus_name: str) -> Bus:
         """
         Get the bus having the specified name.
@@ -961,8 +955,8 @@ class Network:
             return admittances[(bus1_name, bus2_name)]
         except KeyError:
             # Compute admittance amplitude and angle
-            network = self.get_state(state)
-            admittance_matrix = network.admittance_matrix.reduction
+            simplified_network = self.get_state(state)
+            admittance_matrix = simplified_network.admittance_matrix.reduction
             admittance = admittance_matrix[bus1_name, bus2_name]
             amplitude = abs(admittance)
             angle = phase(admittance)

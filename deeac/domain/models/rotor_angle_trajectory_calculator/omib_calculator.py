@@ -161,20 +161,20 @@ class OMIBRotorAngleTrajectoryCalculator(ABC):
             target_angle = self._select_angle(angle_list)
 
             if cmath.isclose(target_angle, angle):
-                # Angle is next target
                 target_state = from_point.network_state
                 get_next_angle = True
-            if update_angle is not None and cmath.isclose(target_angle, update_angle):
-                # Update angle is next state
+            elif update_angle is not None and cmath.isclose(target_angle, update_angle):
                 target_state = current_state
                 try:
                     update_angle, _, _ = next(update_angle_iterator)
                 except StopIteration:
                     update_angle = None
-            if current_state == self._during_state and cmath.isclose(target_angle, transition_angle):
-                # Transition angle is next target
+            elif current_state == self._during_state and cmath.isclose(target_angle, transition_angle):
                 target_state = self._post_state
                 current_state = self._post_state
+                get_next_angle = False
+            else:
+                get_next_angle = False
 
             try:
                 to_point = self._get_trajectory_point(

@@ -8,9 +8,10 @@
 # This file is part of the deeac project.
 
 import json
-import cmath
 
 from typing import List, Set, Tuple
+from math import cos, sin, pi
+import numpy as np
 
 from .identifier import GapBasedIdentifier
 from deeac.domain.models import DynamicGenerator, Network, NetworkState
@@ -67,84 +68,69 @@ class DuringFaultTrajectoryCriticalClustersIdentifier(GapBasedIdentifier):
             never_critical_generators=never_critical_generators
         )
 
-    def _get_angle_derivatives(self, matrix_a, matrix_b) -> Tuple[List, List]:
+    def _get_angle_derivatives(self, matrix_a, matrix_b) -> Tuple[np.ndarray, np.ndarray]:
         """
         Compute the second and fourth order angle derivative
-        :return: list of second order angle derivative, and list of fourth order angle derivative
+        :return: numpy arrays for second order angle derivative, and fourth order angle derivative
         """
-        # Second order derivative with matrix_a
-        d2_list = list()
-        for row_matrix_a, generator in zip(matrix_a, self._generators):
-            d2 = self._network.pulse * (generator.mechanical_power - sum(row_matrix_a)) / generator.inertia_coefficient
-            d2_list.append(d2)
+        matrix_a = np.array(matrix_a)
+        matrix_b = np.array(matrix_b)
 
-        # Fourth order derivative with the second order derivative and matrix_b
-        d4_list = list()
-        for d2, row_matrix_b, generator in zip(d2_list, matrix_b, self._generators):
-            d2_sum = sum(row_matrix_b[j] * (d2 - d2_list[j]) for j in range(len(self._generators)))
-            d4 = self._network.pulse * d2_sum / generator.inertia_coefficient
-            d4_list.append(d4)
+        d2_list = self._network.pulse * (np.array([generator.mechanical_power for generator in self._generators])
+                                         - matrix_a.sum(axis=1)) / np.array(
+            [generator.inertia_coefficient for generator in self._generators])
+
+        d2_diff = d2_list[:, None] - d2_list
+        d4_list = self._network.pulse * np.sum(matrix_b * d2_diff, axis=1) / np.array(
+            [generator.inertia_coefficient for generator in self._generators])
 
         return d2_list, d4_list
 
-    def _get_power_matrices(self) -> Tuple[List[List[float]], List[List[float]]]:
+    def _get_power_matrices(self) -> Tuple[np.ndarray, np.ndarray]:
         """
         Computes the power matrices for the Taylor series angle computation
         :return: matrices pair as coefficient of the second and fourth order angle derivative respectively
         """
-        matrix_a = list()
-        matrix_b = list()
-        for generator_i in self._generators:
-            row_a = list()
-            row_b = list()
-            for generator_j in self._generators:
-                name_i = generator_i.bus.name
-                name_j = generator_j.bus.name
-                admittance_module, admittance_phase = \
-                    self._network.get_admittance(name_i, name_j, NetworkState.DURING_FAULT)
+        # Nombre de générateurs
+        num_generators = len(self._generators)
+        matrix_a = np.zeros((num_generators, num_generators))
+        matrix_b = np.zeros((num_generators, num_generators))
 
-                delta_i = generator_i.get_rotor_angle(0)
+        for i, generator_i in enumerate(self._generators):
+            delta_i = generator_i.get_rotor_angle(0)
+            voltage_i = abs(generator_i.generator.internal_voltage)
+            name_i = generator_i.bus.name
+
+            for j, generator_j in enumerate(self._generators):
+                name_j = generator_j.bus.name
+                admittance_module, admittance_phase = self._network.get_admittance(name_i, name_j,
+                                                                                   NetworkState.DURING_FAULT)
                 delta_j = generator_j.get_rotor_angle(0)
                 angle = delta_i - delta_j - admittance_phase
-
-                voltage_i = abs(generator_i.generator.internal_voltage)
                 voltage_j = abs(generator_j.generator.internal_voltage)
-                row_a.append(voltage_i * voltage_j * admittance_module * cmath.cos(angle).real)
-                row_b.append(voltage_i * voltage_j * admittance_module * cmath.sin(angle).real)
-
-            matrix_a.append(row_a)
-            matrix_b.append(row_b)
+                matrix_a[i, j] = voltage_i * voltage_j * admittance_module * cos(angle)
+                matrix_b[i, j] = voltage_i * voltage_j * admittance_module * sin(angle)
 
         return matrix_a, matrix_b
 
-    def _compute_angle_variation_list(self) -> List[float]:
+    def _compute_angle_variation_list(self) -> np.ndarray:
         """
         Computes the variation in angle from fault time to time step for every generator
         :return: the list of all angle variation in radians
         """
         matrix_a, matrix_b = self._get_power_matrices()
         d2_list, d4_list = self._get_angle_derivatives(matrix_a, matrix_b)
+        t = self._during_fault_identification_time_step / 1000
 
-        generator_variation_list = list()
-        generator_taylor_angles = dict()
+        generator_variation_list = (d2_list * t ** 2 / 2 + d4_list * t ** 4 / 24) * 180 / pi
 
-        # Conversion milliseconds to seconds
-        t = self._during_fault_identification_time_step / 10 ** 3
-        for generator, d2, d4 in zip(self._generators, d2_list, d4_list):
-            generator_variation_list.append((d2 * t ** 2 / 2 + d4 * t ** 4 / 24) * 180 / cmath.pi)
-
-            # Compute the angles for several time values if the user specified it
-            if self._during_fault_identification_plot_times is not None:
-                for time_step_millisecond in self._during_fault_identification_plot_times:
-                    time_step = float(time_step_millisecond) / 10 ** 3
-                    # Save the values in a dictionary {time_step: angle list}
-                    if time_step not in generator_taylor_angles:
-                        generator_taylor_angles[time_step] = list()
-                    angle = (d2 * time_step ** 2 / 2 + d4 * time_step ** 4 / 24) * 180 / cmath.pi
-                    generator_taylor_angles[time_step].append(angle)
-
-        # Save the angle values if the user specified it
         if self._during_fault_identification_plot_times is not None:
+            generator_taylor_angles = {}
+            plot_times_seconds = np.array(self._during_fault_identification_plot_times) / 1000
+            for time_step in plot_times_seconds:
+                angles_at_time_step = (d2_list * time_step ** 2 / 2 + d4_list * time_step ** 4 / 24) * 180 / pi
+                generator_taylor_angles[time_step] = angles_at_time_step.tolist()
+
             json.dump(generator_taylor_angles, open('output_taylor.json', 'w'))
 
         return generator_variation_list

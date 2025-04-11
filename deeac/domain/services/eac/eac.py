@@ -25,7 +25,12 @@ class EAC:
     transient stability study.
     """
 
-    def __init__(self, omib: OMIB, angle_increment: float = np.pi / 1800, max_integration_angle: float = 2 * np.pi):
+    def __init__(self,
+                 omib: OMIB,
+                 angle_increment: float = np.pi / 1800,
+                 max_integration_angle: float = 2 * np.pi,
+                 exploration_angle_increment_factor: int = 15,
+                 exploration_last_angle_increment_factor: int = 20):
         """
         Initialize the EAC service.
 
@@ -44,6 +49,9 @@ class EAC:
 
         # Increment for critical angle search
         self._angle_increment = angle_increment
+        self._exploration_angle_increment_factor = exploration_angle_increment_factor
+        self._exploration_last_angle_increment_factor = exploration_last_angle_increment_factor
+
         # Maximum integration angle
         self._max_integration_angle = max_integration_angle
 
@@ -118,23 +126,23 @@ class EAC:
         """
         # Define the angle increment based on the swing state
         angle_increment = self._angle_increment * self._swing_factor
+        big_angle_increment = angle_increment * self._exploration_angle_increment_factor
+        big_last_angle_increment = angle_increment * self._exploration_last_angle_increment_factor
         # Current rotor angle and last angle to consider when computing deceleration area
         angle = self._omib.initial_rotor_angle
-        last_angle = angle + angle_increment
+        last_angle = angle + big_angle_increment
 
         # Candidate critical and maximum angles
         candidate_cc_angle = self._omib.initial_rotor_angle
         candidate_maximum_angle = self._omib.initial_rotor_angle
 
         # Find last possible candidate critical angle, as it will be the critical one
+        acceleration_area = 0
+        angle_exploration_mode = True
+
         while angle * self._swing_factor < self._max_integration_angle:
-            # Get acceleration area
-            acceleration_area = self._get_power_area(
-                self._omib.initial_rotor_angle,
-                angle,
-                self._during_state
-            )
             # Get angle at which areas are similar, as it is a candidate
+            last_angle_exploration_mode = True
             while last_angle * self._swing_factor <= self._max_integration_angle:
                 deceleration_area = self._get_power_area(
                     angle,
@@ -142,11 +150,18 @@ class EAC:
                     self._post_state
                 )
                 if acceleration_area + deceleration_area <= 0:
-                    # Found the point where area are (almost) similar -> new candidate found
-                    candidate_cc_angle = angle
-                    candidate_maximum_angle = last_angle
-                    break
-                last_angle += angle_increment
+                    if last_angle_exploration_mode:
+                        last_angle_exploration_mode = False
+                        last_angle -= big_last_angle_increment
+                    else:
+                        # Found the point where area are (almost) similar -> new candidate found
+                        candidate_cc_angle = angle
+                        candidate_maximum_angle = last_angle
+                        break
+                if last_angle_exploration_mode:
+                    last_angle += big_last_angle_increment
+                else:
+                    last_angle += angle_increment
 
             if last_angle * self._swing_factor > self._max_integration_angle:
                 # No new candidate was found
@@ -162,16 +177,30 @@ class EAC:
                     self._post_state
                 )
                 if self._swing_factor * self._omib.mechanical_power <= self._swing_factor * electric_power:
-                    # Candidate angle is the critical one
-                    self._omib.stability_state = OMIBStabilityState.POTENTIALLY_STABLE
-                    return (
-                        candidate_cc_angle,
-                        candidate_maximum_angle
-                    )
+                    if angle_exploration_mode:
+                        angle_exploration_mode = False
+                        angle = angle - big_angle_increment
+                    else:
+                        # Candidate angle is the critical one
+                        self._omib.stability_state = OMIBStabilityState.POTENTIALLY_STABLE
+                        return (
+                            candidate_cc_angle,
+                            candidate_maximum_angle
+                        )
 
             # Try to determine if another candidate exists
-            angle += angle_increment
-            last_angle = angle + angle_increment
+            if angle_exploration_mode:
+                angle += big_angle_increment
+            else:
+                angle += angle_increment
+            last_angle = angle + big_angle_increment
+
+            # Update acceleration area
+            acceleration_area = self._get_power_area(
+                self._omib.initial_rotor_angle,
+                angle,
+                self._during_state
+            )
 
         # Did not find any candidate -> always stable
         self._omib.stability_state = OMIBStabilityState.ALWAYS_STABLE

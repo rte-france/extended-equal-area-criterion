@@ -51,7 +51,9 @@ class EAC:
         self._critical_clearing_angle = None
         self._maximum_angle = None
 
-    def _get_trajectory_power_area(self, from_rotor_angle: float, to_rotor_angle: float, state: NetworkState) -> float:
+    def _get_trajectory_power_area(self, from_rotor_angle: float, to_rotor_angle: float, state: NetworkState,
+                                   angle_shift: float, constant_electric_power: float,
+                                   maximum_electric_power: float) -> float:
         """
         Compute the power area between two OMIB rotor angles based on the trajectory corresponding to the provided
         network state.
@@ -60,14 +62,11 @@ class EAC:
         :param to_rotor_angle: Ending angle (rad).
         :param state: Network state to consider for the rotor angle trajectory. Only during and post-fault states are
                       allowed.
+        :param angle_shift: Precomputed angle shift.
+        :param constant_electric_power: Precomputed constant electric power.
+        :param maximum_electric_power: Precomputed maximum electric power.
         :return: The area between from_angle and to_angle along the OMIB trajectory.
         """
-        # Get OMIB properties
-        angle_shift, constant_electric_power, maximum_electric_power = self._omib.get_properties(
-            state,
-            from_rotor_angle
-        )
-
         # Compute area
         power_difference = self._omib.mechanical_power - constant_electric_power
         cosine_difference = np.cos(to_rotor_angle - angle_shift) - np.cos(from_rotor_angle - angle_shift)
@@ -86,6 +85,11 @@ class EAC:
                       allowed.
         """
         update_angles = [angle for angle, _, network_state in self._omib.update_angles if network_state == state]
+
+        # Retrieve the OMIB properties once for all the angles in the range
+        angle_shift, constant_electric_power, maximum_electric_power \
+            = self._omib.get_properties(state, from_rotor_angle)
+
         start_angle = from_rotor_angle
         area = 0
         for update_angle in update_angles[1:]:
@@ -96,11 +100,13 @@ class EAC:
                 # Do not consider updates after ending rotor angle
                 break
 
-            area += self._get_trajectory_power_area(start_angle, update_angle, state)
+            area += self._get_trajectory_power_area(start_angle, update_angle, state, angle_shift,
+                                                    constant_electric_power, maximum_electric_power)
             start_angle = update_angle
 
         # Add last area to the final angle
-        area += self._get_trajectory_power_area(start_angle, to_rotor_angle, state)
+        area += self._get_trajectory_power_area(start_angle, to_rotor_angle, state, angle_shift,
+                                                constant_electric_power, maximum_electric_power)
         return area
 
     def _get_critical_and_maximum_angles(self) -> Tuple[float, float]:

@@ -54,4 +54,4 @@ class BusShortCircuitClearingEvent(MitigationEvent):
 
         # Remove fictive load
         load_name = f"FICT_LOAD_{bus.name}"
-        bus.loads = [load for load in bus.loads if load.name != load_name]
+        bus.loads = set(load for load in bus.loads if load.name != load_name)

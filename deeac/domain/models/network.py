@@ -819,8 +819,8 @@ class Network:
             bus.branches = branches
 
             # Remove generators and loads that are not connected
-            bus.generators = [generator for generator in bus.generators if generator.connected]
-            bus.loads = [load for load in bus.loads if load.connected]
+            bus.generators = set(generator for generator in bus.generators if generator.connected)
+            bus.loads = set(load for load in bus.loads if load.connected)
 
         # Add fictive buses for the internal voltage of each generator
         fictive_buses = list()

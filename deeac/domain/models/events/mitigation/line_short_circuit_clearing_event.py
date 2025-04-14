@@ -84,6 +84,6 @@ class LineShortCircuitClearingEvent(MitigationEvent):
         # Remove fictive loads
         first_load_name = f"FICT_LOAD_{self.parallel_id}_{second_bus.name}_{first_bus.name}"
         second_load_name = f"FICT_LOAD_{self.parallel_id}_{first_bus.name}_{second_bus.name}"
-        first_bus.loads = [load for load in first_bus.loads if load.name != first_load_name]
-        second_bus.loads = [load for load in second_bus.loads if load.name != second_load_name]
+        first_bus.loads = set(load for load in first_bus.loads if load.name != first_load_name)
+        second_bus.loads = set(load for load in second_bus.loads if load.name != second_load_name)
         line.metal_short_circuited = False

@@ -91,10 +91,9 @@ class DuringFaultTrajectoryCriticalClustersIdentifier(GapBasedIdentifier):
         Computes the power matrices for the Taylor series angle computation
         :return: matrices pair as coefficient of the second and fourth order angle derivative respectively
         """
-        # Nombre de générateurs
-        num_generators = len(self._generators)
-        matrix_a = np.zeros((num_generators, num_generators))
-        matrix_b = np.zeros((num_generators, num_generators))
+        nb_generators = len(self._generators)
+        matrix_a = np.zeros((nb_generators, nb_generators))
+        matrix_b = np.zeros((nb_generators, nb_generators))
 
         for i, generator_i in enumerate(self._generators):
             delta_i = generator_i.get_rotor_angle(0)

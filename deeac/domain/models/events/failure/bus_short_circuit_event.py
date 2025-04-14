@@ -69,7 +69,7 @@ class BusShortCircuitEvent(FailureEvent):
         bus = network.get_bus(self.bus_name)
 
         # Compute admittance
-        admittance = 1 / complex(self.fault_resistance.to_unit(Unit.OHM), self.fault_reactance.to_unit(Unit.OHM))
+        admittance = 1 / complex(self.fault_resistance, self.fault_reactance)
 
         # Add fictive load
         bus.add_load(FictiveLoad(

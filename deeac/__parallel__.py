@@ -18,6 +18,10 @@ from deeac.domain.exceptions import DEEACException
 from deeac.services import EventLoader
 
 
+def run_fault_from_args(args):
+    return run_parallel_fault(*args)
+
+
 def run_parallel_fault(
     seq_file, eeac_tree, output_dir, base_network, verbose, duplication_time, network_loading_time,
     tree_loading_time, start_time, parallel_run, island_threshold, protection_delay, warn

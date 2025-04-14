@@ -12,14 +12,14 @@ import json
 import os
 import shutil
 from datetime import datetime
-from multiprocessing import get_context, set_start_method
+from joblib import Parallel, delayed
 
 from deeac.adapters.load_flow.eurostag import EurostagLoadFlowParser
 from deeac.adapters.topology.eurostag import EurostagTopologyParser
 from deeac.adapters.eeac_tree.json import JSONTreeParser
 from deeac.domain.exceptions import DEEACException
 from deeac.services import NetworkLoader, EEACTreeLoader
-from .__parallel__ import run_parallel_fault
+from deeac.__parallel__ import run_parallel_fault, run_fault_from_args
 from .parsing_lib import parse
 
 
@@ -133,7 +133,6 @@ def deeac(argv):
                 )
                 for seq_file, output_path, parallel in zip(seq_files, output_dirs, [True] * len(seq_files))
             ]
-            set_start_method("spawn")
             # Splitting the pool avoids it to crash
             critical_results = dict()
             n_jobs = len(zipped_data)
@@ -144,22 +143,12 @@ def deeac(argv):
                     print(f"Running fault {n + 1}/{n_jobs}")
                     result = run_parallel_fault(*data)
                     critical_results[result[0]] = result[1]
-            # Run the jobs in a parallel processing pool batch by batch to avoid a pool failure to close
             else:
-                n_pools = int(n_jobs / cores)
-                if n_pools != n_jobs / cores:
-                    n_pools += 1
-
-                for n in range(n_pools):
-                    with get_context("spawn").Pool(cores) as pool:
-                        min_job = n * cores + 1
-                        max_job = (n + 1) * cores
-                        if max_job < n_jobs:
-                            print(f"Jobs {min_job} to {max_job} / {n_jobs}")
-                            critical_results.update(pool.starmap(run_parallel_fault, zipped_data[min_job:max_job]))
-                        else:
-                            print(f"Jobs {min_job} to {n_jobs} / {n_jobs}")
-                            critical_results.update(pool.starmap(run_parallel_fault, zipped_data[min_job:]))
+                results = Parallel(n_jobs=cores)(
+                    delayed(run_fault_from_args)(data) for data in zipped_data
+                )
+                for i, result in enumerate(results):
+                    critical_results[result[0]] = result[1]
 
         formatted_critical_results = dict()
         for fault, result in critical_results.items():

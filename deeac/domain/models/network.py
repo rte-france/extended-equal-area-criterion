@@ -186,6 +186,18 @@ class Network:
         return [load for bus in self.buses for load in bus.loads]
 
     @property
+    def non_fictive_loads(self) -> List[Load]:
+        """
+        Get the actual loads in the network, meaning
+        that the fictive loads that are added to model a fault are
+        not returned.
+
+        :return: The list of non fictive loads.
+        """
+        return [load for bus in self.buses for load in bus.loads
+                if not isinstance(load, FictiveLoad)]
+
+    @property
     def capacitor_banks(self) -> List[CapacitorBank]:
         """
         Get the capacitor banks in the network.

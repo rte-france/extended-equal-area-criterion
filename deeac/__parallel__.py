@@ -86,10 +86,10 @@ def run_parallel_fault(
     # Gathering information on the island
     units = [unit for unit in network.generators if unit.bus.name in island]
     unit_names = ', '.join([unit.name for unit in units])
-    production = sum(unit.active_power_value for unit in units)
+    production = sum(unit.active_power for unit in units)
     loads = [load for load in network.loads if load.bus.name in island]
     load_names = ', '.join([load.name for load in loads])
-    consumption = sum(load.active_power_value for load in loads)
+    consumption = sum(load.active_power for load in loads)
 
     if production > 0:
         text_result.append(f"Isolated production: {production}MW - {unit_names}")

@@ -151,7 +151,8 @@ def deeac(argv):
                     critical_results[result[0]] = result[1]
 
         formatted_critical_results = dict()
-        for fault, result in critical_results.items():
+        for fault in sorted(critical_results.keys()):
+            result = critical_results[fault]
             if isinstance(result, str):
                 formatted_critical_results[fault] = {"status": result}
             elif isinstance(result, dict):

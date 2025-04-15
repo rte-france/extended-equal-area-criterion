@@ -24,7 +24,8 @@ REQUIRED = [
     "numpy==1.24.4",
     "networkx>=2.5.1",
     "scipy>=1.5.4",
-    "matplotlib>=3.3.4"
+    "matplotlib>=3.3.4",
+    "joblib>=1.4.2"
 ]
 
 EXTRA_REQUIRED = {

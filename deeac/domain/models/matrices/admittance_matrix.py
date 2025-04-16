@@ -30,14 +30,9 @@ class AdmittanceMatrix(BusMatrix):
         :param buses: List of the buses represented by the matrix.
         """
         # Sort buses so that buses associated to a generator come first
-        self._generator_buses = deque()
-        sorted_buses = deque()
-        for bus in buses:
-            if len(bus.generators) > 0:
-                self._generator_buses.appendleft(bus)
-                sorted_buses.appendleft(bus)
-            else:
-                sorted_buses.append(bus)
+        sorted_buses = sorted(buses, key=lambda bus: int(len(bus.generators) == 0))
+        self._generator_buses = [bus for bus in sorted_buses if bus.generators]
+
         # Get indexes
         bus_indexes = self._build_index_mapping(sorted_buses)
 
@@ -217,12 +212,9 @@ class ReducedAdmittanceMatrix(BusMatrix):
         y_upper_right = admittance_matrix.matrix[:nb_generator_buses, nb_generator_buses:]
         y_lower_left = admittance_matrix.matrix[nb_generator_buses:, :nb_generator_buses]
 
-        # Compute the inverse of matrix with buses not associated to generators using LU decomposition for performances
-        lu = linalg.splu(y_non_generators)
-        eye_matrix = np.eye(y_non_generators.shape[0])
-        y_non_generators_inv = lu.solve(eye_matrix)
-
         # Compute the reduced matrix
-        reduced_matrix = y_generators - (y_upper_right @ y_non_generators_inv @ y_lower_left)
+        lu = linalg.splu(y_non_generators)
+        temp = lu.solve(y_lower_left.toarray())
+        reduced_matrix = y_generators - y_upper_right @ temp
 
         return reduced_matrix

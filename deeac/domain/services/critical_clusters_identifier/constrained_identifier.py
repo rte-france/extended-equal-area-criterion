@@ -7,22 +7,25 @@
 # SPDX-License-Identifier: MPL-2.0
 # This file is part of the deeac project.
 
-from typing import List, Tuple, Set
+from typing import Dict, Tuple, List, Iterator, Set
 
-from .identifier import ThresholdBasedIdentifier
+from .identifier import CriticalClustersIdentifier
 from deeac.domain.models import Network, DynamicGenerator
 from deeac.domain.exceptions import CriticalClustersIdentifierUnknownGeneratorsException
 
+from deeac.domain.models import GeneratorCluster
 
-class ConstrainedCriticalClustersIdentifier(ThresholdBasedIdentifier):
+
+class ConstrainedCriticalClustersIdentifier(CriticalClustersIdentifier):
     """
     Identifier of a critical cluster of generators constrained by the user.
     """
 
     def __init__(
-        self, network: Network, generators: Set[DynamicGenerator], critical_generator_names: List[str],
-        maximum_number_candidates: int = 0, min_cluster_power: float = None,
-        threshold_decrement: float = 0.1, try_all_combinations: bool = False, never_critical_generators: List = None
+        self,
+        network: Network,
+        generators: Set[DynamicGenerator],
+        critical_generator_names: List[str]
     ):
         """
         Initialize the identifier.
@@ -32,39 +35,22 @@ class ConstrainedCriticalClustersIdentifier(ThresholdBasedIdentifier):
         :param critical_generator_names: Names of all the generators that must be considered as critical.
                                          This list must be ordered in increasing order of criticality.
                                          The other generators are considered as not critical.
-        :param maximum_number_candidates: Maximum number of critical cluster candidates this identifier can generate.
-                                          A value of 0 or lower means all possible clusters. Otherwise, the returned
-                                          candidates are always the ones with the least generators, in increasing size.
-        :param min_cluster_power: Minimum aggregated active power (per unit) a cluster must deliver to be consider as a
-                                  potential critical cluster candidate. If None, the aggregated power is not considered.
-        :param threshold_decrement: Value to subtract to the threshold in case the critical machine candidates are not
-                                    able to provide the minimum active power for the cluster. The subtraction may be
-                                    performed multiple times until finding a cluster that meets the minimal aggregated
-                                    power.
-        :param try_all_combinations: Whether to create a new candidate cluster by removing generators one by one
-                                     or to try all combinations of generators
-        :param never_critical_generators: the generators that must be excluded from the critical cluster identification
         :raises UnknownGeneratorsException if one or several critical generators cannot be identified.
         """
-        # Keep critical generator names
         self._critical_generator_names = critical_generator_names
 
-        # Call parent constructor
         super().__init__(
             network=network,
-            generators=generators,
-            maximum_number_candidates=maximum_number_candidates,
-            min_cluster_power=min_cluster_power,
-            threshold_decrement=threshold_decrement,
-            try_all_combinations=try_all_combinations,
-            never_critical_generators=never_critical_generators
+            generators=generators
         )
+
+        # Compute criterions
+        criterions = self._compute_criterions()
+        self._identify_critical_machine_candidates(criterions)
 
     def _compute_criterions(self) -> List[Tuple[DynamicGenerator, float]]:
         """
         Compute the criterion for each generator.
-
-
         :return: List of tuples (generator, criterion) associating each generator to its criterion.
         """
         criterions = []
@@ -89,3 +75,22 @@ class ConstrainedCriticalClustersIdentifier(ThresholdBasedIdentifier):
                 criterions.append((generator, 0))
 
         return criterions
+
+    @property
+    def candidate_clusters(self) -> Iterator[Tuple[GeneratorCluster, GeneratorCluster]]:
+        """
+        Get the critical and non-critical cluster candidates.
+
+        :return: An iterator of tuples with respectively the critical and non-critical cluster candidates.
+        """
+        candidate_list = [self._critical_machine_candidates]
+        return self._get_candidate_cluster(candidate_list)
+
+    def _identify_critical_machine_candidates(self, criterions: List[Tuple[DynamicGenerator, float]]):
+        """
+        Search for the set of machines that may be critical
+        """
+        self._critical_machine_candidates = [
+            generator for generator, criterion in criterions
+            if criterion == 1
+        ]

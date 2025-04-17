@@ -85,15 +85,11 @@ class CriticalClustersIdentifierFactory:
             # Constrained identifier requires critical generator names
             if critical_generator_names is None:
                 critical_generator_names = []
+
             return cc_identifier_type(
                 network=network,
                 generators=generators,
-                maximum_number_candidates=maximum_number_candidates,
-                min_cluster_power=min_cluster_power,
-                try_all_combinations = try_all_combinations,
-                critical_generator_names=critical_generator_names,
-                threshold_decrement=threshold_decrement,
-                never_critical_generators=never_critical_generators
+                critical_generator_names=critical_generator_names
             )
         elif cc_identifier_type == DuringFaultTrajectoryCriticalClustersIdentifier:
             return cc_identifier_type(

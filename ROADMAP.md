@@ -29,6 +29,9 @@ So far, most of the effort has been put on achieving a good accuracy with EEAC
 (with respect to a time-domain simulation). 
 Therefore there should remain ways to improve the 
 computation speed of EEAC.
+In particular, the network model is heavy and its duplication
+consumes too much time. It would be beneficial to split it's attribute
+between State dependant (to be duplicated) and State invariant (one single instance is enough). 
 
 ## Dynawo inputs instead of Eurostag inputs
 
@@ -46,4 +49,7 @@ a line with non 0 impedance.
 - Set non-regression tests.
 - Verify the good behaviour of EEAC when the critical cluster contains both 
 pumping hydro and turbining units.
-- Upgrade to pydantic V2
+- Upgrade to pydantic V2.
+- CriticalClustersIdentifier classes should be refactored since some attributes are
+wrongly placed in the heritage tree.
+

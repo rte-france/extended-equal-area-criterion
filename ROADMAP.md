@@ -46,3 +46,4 @@ a line with non 0 impedance.
 - Set non-regression tests.
 - Verify the good behaviour of EEAC when the critical cluster contains both 
 pumping hydro and turbining units.
+- Upgrade to pydantic V2

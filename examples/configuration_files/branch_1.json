@@ -8,7 +8,7 @@
       "tso_customization": "RTE",
       "identifier_type": "DFT",
       "during_fault_identification_time_step": 170,
-      "max_number_candidates": 12,
+      "max_number_candidates": 16,
       "significant_angle_variation_threshold": 5,
       "never_critical_generators": [".EQV1T 1", ".EQV2T 1", ".EQV3T 1", ".EQV4T 1", ".EQV5T 1", ".EQV6T 1", ".EQV7T 1", ".EQV8T 1", ".EQV9T 1", ".EQVAT 1", ".EQVBT 1", ".EQVCT 1", ".EQVDT 1", ".EQVET 1", ".EQVFT 1"]
     },

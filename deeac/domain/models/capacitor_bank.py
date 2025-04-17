@@ -10,9 +10,10 @@
 from typing import TYPE_CHECKING
 import numpy as np
 
-from .value import Value
 if TYPE_CHECKING:
     from .bus import Bus
+
+from deeac.domain.models.constants import BASE_POWER
 
 
 class CapacitorBank:
@@ -20,19 +21,20 @@ class CapacitorBank:
     Capacitor bank in a network.
     """
 
-    def __init__(self, name: str, bus: 'Bus', active_power: Value, reactive_power: Value):
+    def __init__(self, name: str, bus: 'Bus',
+                 active_power: float, reactive_power: float):
         """
         Initialize a load.
 
         :param name: Name of the load.
         :param bus: Bus to which the load is connected.
-        :param active_power: Active power at the load.
-        :param reactive_power: Reactive power at the load.
+        :param active_power: Active power at the load. Unit: MW.
+        :param reactive_power: Reactive power at the load. Unit: MVAr.
         """
         self.name = name
         self._bus = bus
-        self._active_power = active_power
-        self._reactive_power = reactive_power
+        self._active_power_pu = active_power / BASE_POWER
+        self._reactive_power_pu = reactive_power / BASE_POWER
 
         # Compute properties
         self.compute_admittance()
@@ -42,15 +44,15 @@ class CapacitorBank:
         Representation of a capacitor bank.
         """
         return (
-            f"Capacitor bank: Name=[{self.name}] Bus=[{self.bus.name}] P=[{self._active_power}] "
-            f"Q=[{self._reactive_power}]"
+            f"Capacitor bank: Name=[{self.name}] Bus=[{self.bus.name}] P=[{self.active_power}] "
+            f"Q=[{self.reactive_power}]"
         )
 
     def compute_admittance(self):
         """
         Compute the admittance of this capacitor bank.
         """
-        bus_voltage_magnitude = self.bus.voltage_magnitude.per_unit
+        bus_voltage_magnitude = self.bus.voltage_magnitude_pu
         if bus_voltage_magnitude == 0j:
             # Admittance is infinite
             self._admittance = complex(np.inf, np.NINF)
@@ -64,7 +66,7 @@ class CapacitorBank:
 
         :return: Complex power
         """
-        return complex(self._active_power.per_unit, self._reactive_power.per_unit)
+        return complex(self._active_power_pu, self._reactive_power_pu)
 
     @property
     def admittance(self) -> complex:
@@ -93,3 +95,21 @@ class CapacitorBank:
         """
         self._bus = bus
         self.compute_admittance()
+
+    @property
+    def active_power(self) -> float:
+        """
+        Return the active power value.
+
+        :return: The active power in MW.
+        """
+        return self._active_power_pu * BASE_POWER
+
+    @property
+    def reactive_power(self) -> float:
+        """
+        Return the active power value.
+
+        :return: The active power in MW.
+        """
+        return self._reactive_power_pu * BASE_POWER

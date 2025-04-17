@@ -22,6 +22,7 @@ from deeac.domain.services.critical_clusters_identifier import (
 from deeac.domain.models import Network, DynamicGenerator, GeneratorCluster, Value, Unit, PUBase
 from deeac.domain.services.factories import CriticalClustersIdentifierFactory
 import deeac.domain.ports.dtos.eeac_tree as node_dtos
+from deeac.domain.models.constants import BASE_POWER
 
 
 # Mapping between critical clusters identifiers and their types
@@ -61,7 +62,7 @@ class CriticalClustersIdentifierNode(EEACTreeNode):
     def __init__(
         self, id: Union[str, int], name: str, identifier_type: Type[CriticalClustersIdentifier], threshold: float,
         threshold_decrement: float, max_number_candidates: int, critical_generator_names: List[str],
-        observation_moment_id: int, min_cluster_power: Value = None, must_display_report: bool = False,
+        observation_moment_id: int, min_cluster_power: float = None, must_display_report: bool = False,
         during_fault_identification_time_step: float = None, during_fault_identification_plot_times: List = None,
         significant_angle_variation_threshold: float = None,
         try_all_combinations: bool = False, never_critical_generators: list = None, tso_customization: str = "default"
@@ -164,8 +165,7 @@ class CriticalClustersIdentifierNode(EEACTreeNode):
         # Get minimum aggregated power
         min_cluster_power = None
         if self._min_cluster_power is not None:
-            self._min_cluster_power.base = PUBase(self._inputs.network.base_power.to_unit(Unit.MVA), Unit.MW)
-            min_cluster_power = self._min_cluster_power.per_unit
+            min_cluster_power = self._min_cluster_power / BASE_POWER
 
         if self._tso_customization == "RTE":
             # Create critical clusters identifier
@@ -340,7 +340,7 @@ class CriticalClustersIdentifierNode(EEACTreeNode):
         if configuration.min_cluster_power is not None:
             power_search = POWER_PATTERN.search(configuration.min_cluster_power)
             power, unit = power_search.groups()
-            min_cluster_power = Value(float(power), Unit(unit))
+            min_cluster_power = Value(float(power), Unit(unit)).to_unit(Unit.MW)
 
         # Create instance
         return CriticalClustersIdentifierNode(

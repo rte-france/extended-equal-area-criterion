@@ -46,25 +46,34 @@ class GeneratorTaylorSeries(GeneratorRotorAnglesTrajectoryCalculator):
         Computes the power matrices for the Taylor series angle computation
         :return: matrices pair as coefficient of the second and fourth order angle derivative respectively
         """
+        n = len(generators)
+        matrix_a = np.zeros((n, n))
+        matrix_b = np.zeros((n, n))
 
-        matrix_a = np.zeros((len(generators), len(generators)))
-        matrix_b = np.zeros((len(generators), len(generators)))
+        voltages = np.array([abs(g.generator.internal_voltage) for g in generators])
+        angles = np.array([g.get_rotor_angle(time) for g in generators])
+        names = [g.bus.name for g in generators]
 
-        for i, generator_i in enumerate(generators):
-            voltage_i = abs(generator_i.generator.internal_voltage)
-            angle_i = generator_i.get_rotor_angle(time)
-            name_i = generator_i.bus.name
+        for i in range(n):
+            voltage_i = voltages[i]
+            angle_i = angles[i]
+            name_i = names[i]
 
-            for j, generator_j in enumerate(generators):
-                voltage_j = abs(generator_j.generator.internal_voltage)
-                angle_j = generator_j.get_rotor_angle(time)
-                name_j = generator_j.bus.name
+            for j in range(i, n):
+                voltage_j = voltages[j]
+                angle_j = angles[j]
+                name_j = names[j]
 
                 admittance_module, admittance_phase = self._network.get_admittance(name_i, name_j, network_state)
-
                 angle = angle_i - angle_j - admittance_phase
-                matrix_a[i, j] = voltage_i * voltage_j * admittance_module * np.cos(angle).real
-                matrix_b[i, j] = voltage_i * voltage_j * admittance_module * np.sin(angle).real
+                cos_angle = np.cos(angle).real
+                sin_angle = np.sin(angle).real
+                matrix_a[i, j] = voltage_i * voltage_j * admittance_module * cos_angle
+                matrix_b[i, j] = voltage_i * voltage_j * admittance_module * sin_angle
+
+                if i != j:
+                    matrix_a[j, i] = matrix_a[i, j]
+                    matrix_b[j, i] = matrix_b[i, j]
 
         return matrix_a, matrix_b
 
@@ -84,71 +93,62 @@ class GeneratorTaylorSeries(GeneratorRotorAnglesTrajectoryCalculator):
         :param to_trajectory_time: Target time corresponding to the new values of the generator angles to be computed.
         :raise GeneratorInertiaException if a generator has no inertia.
         """
-        for generator in generators:
-            if generator.inertia_coefficient == 0:
-                # Generator has no inertia
-                raise GeneratorInertiaException(generator.name)
+        if any(generator.inertia_coefficient == 0 for generator in generators):
+            raise GeneratorInertiaException(
+                [g.name for g in generators if g.inertia_coefficient == 0][0]
+            )
 
         from_time = from_trajectory_time.time
         to_time = to_trajectory_time.time
         network_state = from_trajectory_time.network_state
+        pulse = self._network.pulse
 
+        generators = list(generators)
         matrix_a, matrix_b = self._get_power_matrices(generators, network_state, from_time)
 
-        derivatives_first = [generator.get_angular_speed(from_time) * self._network.pulse for generator in generators]
+        inertia = np.array([g.inertia_coefficient for g in generators])
+        mech_power = np.array([g.mechanical_power for g in generators])
+        rotor_angles = np.array([g.get_rotor_angle(from_time) for g in generators])
+        angular_speeds = np.array([g.get_angular_speed(from_time) * pulse for g in generators])
 
-        derivatives_second = list()
+        sum_matrix_a = matrix_a.sum(axis=1)
+        derivatives_second = (mech_power - sum_matrix_a) * pulse / inertia
+
+        delta_speed = angular_speeds[:, None] - angular_speeds
+        derivatives_third = (np.sum(matrix_b * delta_speed, axis=1)) * pulse / inertia
+
+        delta_second = derivatives_second[:, None] - derivatives_second
+        delta_first_squared = delta_speed ** 2
+        fourth_sum = matrix_a * delta_first_squared + matrix_b * delta_second
+        derivatives_fourth = (np.sum(fourth_sum, axis=1)) * pulse / inertia
+
+        delta_third = derivatives_third[:, None] - derivatives_third
+        delta_first_cubed = delta_speed ** 3
+        fifth_sum = 3 * matrix_a * delta_speed * delta_second + matrix_b * (delta_third - delta_first_cubed)
+        derivatives_fifth = (np.sum(fifth_sum, axis=1)) * pulse / inertia
+
+        dt = to_time - from_time
+        dt2, dt3, dt4 = dt ** 2, dt ** 3, dt ** 4
+
+        delta_angles = (
+            dt * angular_speeds +
+            dt2 * derivatives_second / 2 +
+            dt3 * derivatives_third / 6 +
+            dt4 * derivatives_fourth / 24
+        )
+        new_angles = rotor_angles + delta_angles
+
+        delta_speeds = (
+            dt * derivatives_second +
+            dt2 * derivatives_third / 2 +
+            dt3 * derivatives_fourth / 6 +
+            dt4 * derivatives_fifth / 24
+        )
+        new_speeds = angular_speeds + delta_speeds
+        new_speeds /= pulse
+
         for i, generator in enumerate(generators):
-            power_sum = generator.mechanical_power - sum(matrix_a[i])
-            derivatives_second.append(power_sum * self._network.pulse / generator.inertia_coefficient)
-
-        derivatives_third = list()
-        for i, generator in enumerate(generators):
-            power_sum = sum(matrix_b[i][j] * (derivatives_first[i] - derivatives_first[j])
-                            for j in range(len(generators)))
-            derivatives_third.append(power_sum * self._network.pulse / generator.inertia_coefficient)
-
-        derivatives_fourth = list()
-        for i, generator in enumerate(generators):
-            power_sum = sum(matrix_a[i][j] * (derivatives_first[i] - derivatives_first[j]) ** 2
-                            + matrix_b[i][j] * (derivatives_second[i] - derivatives_second[j])
-                            for j in range(len(generators)))
-            derivatives_fourth.append(power_sum * self._network.pulse / generator.inertia_coefficient)
-
-        derivatives_fifth = list()
-        for i, generator in enumerate(generators):
-            power_sum = sum(3 * matrix_a[i][j]
-                            * (derivatives_first[i] - derivatives_first[j])
-                            * (derivatives_second[i] - derivatives_second[j])
-                            + matrix_b[i][j]
-                            * (derivatives_third[i] - derivatives_third[j]
-                               - (derivatives_first[i] - derivatives_first[j]) ** 3)
-                            for j in range(len(generators)))
-            derivatives_fifth.append(power_sum * self._network.pulse / generator.inertia_coefficient)
-
-            time_interval = to_time - from_time
-            time_interval_second = time_interval * time_interval
-            time_interval_third = time_interval * time_interval_second
-            time_interval_fourth = time_interval * time_interval_third
-
-            # Compute rotor angle at target time
-            delta_angle = (
-                time_interval * derivatives_first[i] +
-                time_interval_second * derivatives_second[i] / 2 +
-                time_interval_third * derivatives_third[i] / 6 +
-                time_interval_fourth * derivatives_fourth[i] / 24
-            )
-            rotor_angle = generator.get_rotor_angle(from_time) + delta_angle
-            generator.add_rotor_angle(to_time, rotor_angle)
-
-            # Compute angular speed at target time
-            delta_speed = (
-                time_interval * derivatives_second[i] +
-                time_interval_second * derivatives_third[i] / 2 +
-                time_interval_third * derivatives_fourth[i] / 6 +
-                time_interval_fourth * derivatives_fifth[i] / 24
-            )
-            to_angular_speed = generator.get_angular_speed(from_time) + delta_speed / self._network.pulse
-            generator.add_angular_speed(to_time, to_angular_speed)
-
+            generator.add_rotor_angle(to_time, new_angles[i])
+            generator.add_angular_speed(to_time, new_speeds[i])
             generator.add_network_state(to_time, to_trajectory_time.network_state)
+

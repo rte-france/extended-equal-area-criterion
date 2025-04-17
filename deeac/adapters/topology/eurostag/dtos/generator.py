@@ -26,12 +26,9 @@ class GeneratorStaticPart(NetworkData):
     name: str
     state: State
     bus_name: str
-    min_active_power: float
     active_power: Optional[float]
     max_active_power: float
-    min_reactive_power: float
     reactive_power: Optional[float]
-    max_reactive_power: float
     target_voltage: Optional[NonNegativeFloat]
     regulating_mode: GeneratorRegulatingMode
     source: Optional[str]

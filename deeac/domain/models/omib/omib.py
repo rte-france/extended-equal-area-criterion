@@ -11,6 +11,7 @@ from functools import lru_cache
 
 import numpy as np
 import math
+import bisect
 from enum import Enum
 from collections import defaultdict
 from abc import ABC, abstractmethod
@@ -266,6 +267,7 @@ class OMIB(ABC):
         try:
             non_critical_inertia_ratio = self._non_critical_cluster.total_inertia / self.total_inertia
             critical_inertia_ratio = self._critical_cluster.total_inertia / self.total_inertia
+            inertia_ratio_difference = non_critical_inertia_ratio - critical_inertia_ratio
         except ZeroDivisionError:
             raise OMIBInertiaException(self)
 
@@ -288,6 +290,7 @@ class OMIB(ABC):
             # Compute conductance and susceptance products for the cluster combinations
             for combination in cluster_combinations:
                 (cluster1, cluster2) = combination
+                term_pos = 0 if combination == cluster_combinations[1] else 1
                 # Gather all data at once before looping over them
                 data_cluster1 = self.get_cluster_data(cluster1, update_time, state)
 
@@ -328,7 +331,6 @@ class OMIB(ABC):
 
                     if cluster1 == cluster2:
                         # Critical / critical or non-critical / non-critical
-                        term_pos = 0 if combination == cluster_combinations[1] else 1
                         constant_power_terms[term_pos] += conductance_cosine_term
                     else:
                         # Critical / non-critical
@@ -338,16 +340,15 @@ class OMIB(ABC):
                         second_constant_terms[1] += conductance_sine_term
 
             # Compute first and second constants implied in maximum electric power and angle shift
-            inertia_ratio_difference = non_critical_inertia_ratio - critical_inertia_ratio
             first_constant = first_constant_terms[0] + first_constant_terms[1] * inertia_ratio_difference
             second_constant = second_constant_terms[0] - second_constant_terms[1] * inertia_ratio_difference
 
             # Compute maximum electric power
-            self._maximum_electric_powers[(state, update_time)] = (first_constant ** 2 + second_constant ** 2) ** .5
+            self._maximum_electric_powers[(state, update_time)] = np.sqrt(first_constant ** 2 + second_constant ** 2)
 
             # Compute angle shift
             try:
-                self._angle_shifts[(state, update_time)] = - math.atan(first_constant / second_constant)
+                self._angle_shifts[(state, update_time)] = - math.atan2(first_constant, second_constant)
             except ZeroDivisionError:
                 raise OMIBAngleShiftException(self)
             # Compute constant electric power
@@ -389,24 +390,15 @@ class OMIB(ABC):
             # Do not consider update at initial angle for the post-fault state
             update_angles = update_angles[1:]
 
-        min_index = 0
-        max_index = len(update_angles) - 1
-        offset = max_index - min_index
-        while offset > 1:
-            mid_index = min_index + math.floor(offset / 2)
-            angle, _, _ = update_angles[mid_index]
-            if math.isclose(angle, rotor_angle, abs_tol=10e-9):
-                # Update angle found
-                return update_angles[mid_index]
-            elif self._swing_factor * angle > self._swing_factor * rotor_angle:
-                max_index = mid_index
-            else:
-                min_index = mid_index
-            offset = max_index - min_index
+        # Remember an element of self._update_angles looks like (angle, time, network_state)
+        angles_only = [self._swing_factor * angle[0] for angle in update_angles]
+        target = self._swing_factor * rotor_angle
 
-        if self._swing_factor * update_angles[max_index][0] <= self._swing_factor * rotor_angle:
-            return update_angles[max_index]
-        return update_angles[min_index]
+        index = bisect.bisect_right(angles_only, target)
+
+        if index == len(update_angles):
+            return update_angles[-1]
+        return update_angles[index - 1] if index > 0 else update_angles[0]
 
     @property
     def mechanical_power(self) -> float:

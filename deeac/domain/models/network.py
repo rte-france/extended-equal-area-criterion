@@ -4,12 +4,14 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, you can obtain one at http://mozilla.org/MPL/2.0/.
-# SPDX-License-Identifier: MPL-2.0
+# SPDX-License-Identifier: MPL-2.0f
 # This file is part of the deeac project.
 
 from cmath import phase, pi
 from functools import lru_cache
+from itertools import chain
 
+import numpy as np
 import networkx as nx
 from typing import List, Set, Tuple, DefaultDict, TYPE_CHECKING
 from enum import Enum
@@ -21,7 +23,7 @@ from deeac.domain.utils import get_element, deepcopy
 from deeac.domain.ports.dtos import topology as topology_dtos, load_flow as load_flow_dtos
 from deeac.domain.exceptions import (
     DEEACExceptionCollector, BranchContentException, LoadFlowException, ElementNotFoundException, ParallelException,
-    SimplifiedNetworkBreakerExcepion, NetworkStateException, MultipleSlackBusException, NoSlackBusException
+    SimplifiedNetworkBreakerException, NetworkStateException, MultipleSlackBusException, NoSlackBusException
 )
 from .bus import Bus, BusType
 from .branch import Branch
@@ -37,6 +39,8 @@ from .matrices import AdmittanceMatrix
 if TYPE_CHECKING:
     from .events import Event
 
+from deeac.domain.models.constants import BASE_POWER
+
 
 class NetworkState(Enum):
     """
@@ -49,29 +53,28 @@ class NetworkState(Enum):
 
 class Network:
     """
-    Distribution network
+    Transmission network
     """
 
-    def __init__(self, buses: List[Bus], breakers: List[ParallelBreakers], base_power: Value, frequency: Value = None):
+    def __init__(self, buses: List[Bus], breakers: List[ParallelBreakers], frequency: float = None):
         """
         Initialize a topology with a list of its buses.
 
         :param buses: List of the buses in the topology.
         :param breakers: List of the breakers that couple buses in the network.
-        :param base_power: System base power.
-        :param frequency: Frequency for this network (50Hz in Europe, default value).
+        :param frequency: Frequency for this network (50Hz in Europe, default value). unit: Hz.
         """
-        self.buses = buses
-        self._breakers = breakers
-        self.base_power = base_power
         if frequency is None:
-            self.frequency = Value(50, Unit.HZ)
+            self.frequency = 50
         else:
             self.frequency = frequency
 
         # Events to produce during and post-fault networks
         self._failure_events = []
         self._mitigation_events = []
+
+        self.buses = buses
+        self._breakers = breakers
 
         # Different simplified versions of the network, with the buses that were discarded in graph analysis
         self._simplified_networks = {
@@ -82,9 +85,6 @@ class Network:
 
         # Get generators to avoid expensive operations
         self._generators = [generator for bus in buses for generator in bus.generators]
-
-        # Create bus coupling map
-        self._bus_coupling_map = self._build_bus_coupling_map()
 
         # Results to store
         self._generator_voltage_product_amplitudes = self._compute_generator_voltage_amplitude_product()
@@ -147,7 +147,7 @@ class Network:
 
         :return: The network pulse.
         """
-        return 2 * pi * self.frequency.to_unit(Unit.HZ)
+        return 2 * pi * self.frequency
 
     @property
     def failure_events(self) -> List['Event']:
@@ -186,6 +186,18 @@ class Network:
         return [load for bus in self.buses for load in bus.loads]
 
     @property
+    def non_fictive_loads(self) -> List[Load]:
+        """
+        Get the actual loads in the network, meaning
+        that the fictive loads that are added to model a fault are
+        not returned.
+
+        :return: The list of non fictive loads.
+        """
+        return [load for bus in self.buses for load in bus.loads
+                if not isinstance(load, FictiveLoad)]
+
+    @property
     def capacitor_banks(self) -> List[CapacitorBank]:
         """
         Get the capacitor banks in the network.
@@ -203,31 +215,11 @@ class Network:
         """
         return self._breakers
 
-    def get_bus_coupling_map(self) -> DefaultDict[Bus, Set[Bus]]:
-        """
-        Get a copy of the bus coupling map
-        """
-        return self._bus_coupling_map
-
-    def get_pre_fault_simplified_network(self):
-        """
-        Get the simplified version of the pre fault network state
-        Note that the return type isn't specified because the SimplifiedNetwork type is defined later
-        as it inherits the Network class
-        """
-        return self._simplified_networks[NetworkState.PRE_FAULT]
-
     def get_generator_voltage_product_amplitudes(self) -> DefaultDict:
         """
         Get the generator voltage amplitude products
         """
         return self._generator_voltage_product_amplitudes
-
-    def get_pre_fault_admittances(self) -> AdmittanceMatrix:
-        """
-        Get the pre fault admittance matrix
-        """
-        return self._admittances[NetworkState.PRE_FAULT]
 
     def get_bus(self, bus_name: str) -> Bus:
         """
@@ -310,30 +302,6 @@ class Network:
             # Generator not found
             raise ElementNotFoundException(generator_name, Generator.__name__)
 
-    def get_coupled_buses(self, bus: Bus) -> Set[Bus]:
-        """
-        Get the set of buses that are coupled with a breaker to the specified bus.
-
-        :param bus: The bus to which the other buses must be coupled.
-        :return: The set of buses coupled to the specified bus, including the input bus.
-        """
-        coupled_buses = {bus}
-        buses = {bus}
-        while buses:
-            current_buses = buses
-            buses = set()
-            for current_bus in current_buses:
-                if current_bus not in self._bus_coupling_map:
-                    # Bus is not coupled
-                    continue
-                for coupled_bus in self._bus_coupling_map[current_bus]:
-                    # Bus is coupled with another one
-                    if coupled_bus not in coupled_buses:
-                        # Bus not already considered
-                        coupled_buses.add(coupled_bus)
-                        buses.add(coupled_bus)
-        return coupled_buses
-
     def change_breaker_position(self, first_bus_name: str, second_bus_name: str, parallel_id: int, closed: bool):
         """
         Change a breaker in the network.
@@ -356,16 +324,6 @@ class Network:
             return
         breaker.closed = closed
 
-        # Update coupling map
-        first_bus = parallel_breakers.first_bus
-        second_bus = parallel_breakers.second_bus
-        if closed:
-            self._bus_coupling_map[first_bus].add(second_bus)
-            self._bus_coupling_map[second_bus].add(first_bus)
-        else:
-            self._bus_coupling_map[first_bus].remove(second_bus)
-            self._bus_coupling_map[second_bus].remove(first_bus)
-
     @classmethod
     def create_network(
         cls, network_topology: topology_dtos.NetworkTopology, load_flow: load_flow_dtos.LoadFlowResults
@@ -381,37 +339,24 @@ class Network:
         # Collector for the exceptions that may occur
         exception_collector = DEEACExceptionCollector()
 
-        # Base power in MVA for per unit conversions
-        with exception_collector:
-            base_power = Value.from_dto(network_topology.base_power).to_unit(Unit.MVA)
-        exception_collector.raise_for_exception()
-
         # Create first the buses
         buses = {}
         for bus in network_topology.buses:
             with exception_collector:
                 # Base voltage obtained from static data
                 base_voltage = Value.from_dto(bus.base_voltage).to_unit(Unit.KV)
-
                 try:
                     # Get load flow results for this bus
                     load_flow_bus = load_flow.buses[bus.name]
                     # Bus voltage obtained from load flow
-                    voltage_magnitude = Value(
-                        value=Value.from_dto(load_flow_bus.voltage).to_unit(Unit.KV),
-                        unit=Unit.KV,
-                        base=PUBase(value=base_voltage, unit=Unit.KV)
-                    )
+                    voltage_magnitude = Value.from_dto(load_flow_bus.voltage).to_unit(Unit.KV)
                     if type(bus) == topology_dtos.SlackBus:
                         # Phase angle of slack bus in static data
-                        phase_angle = Value(value=Value.from_dto(bus.phase_angle).to_unit(Unit.DEG), unit=Unit.DEG)
+                        phase_angle = Value.from_dto(bus.phase_angle).to_unit(Unit.RAD)
                         bus_type = BusType.SLACK
                     else:
                         # Phase angle from load flow
-                        phase_angle = Value(
-                            value=Value.from_dto(load_flow_bus.phase_angle).to_unit(Unit.DEG),
-                            unit=Unit.DEG
-                        )
+                        phase_angle = Value.from_dto(load_flow_bus.phase_angle).to_unit(Unit.RAD)
                         bus_type = None
                 except KeyError:
                     # No load flow data for this bus
@@ -419,14 +364,14 @@ class Network:
                         # Slack bus must have load flow results
                         raise LoadFlowException(bus.name, Bus.__name__)
                     # Bus is probably disconnected
-                    voltage_magnitude = Value(value=0, unit=Unit.KV, base=PUBase(value=base_voltage, unit=Unit.KV))
-                    phase_angle = Value(value=0, unit=Unit.DEG)
+                    voltage_magnitude = 0
+                    phase_angle = 0
                     bus_type = None
 
                 # Generate model
                 buses[bus.name] = Bus(
                     name=bus.name,
-                    base_voltage=Value(value=base_voltage, unit=Unit.KV),
+                    base_voltage=base_voltage,
                     voltage_magnitude=voltage_magnitude,
                     phase_angle=phase_angle,
                     type=bus_type
@@ -445,26 +390,13 @@ class Network:
                     generator_type = GeneratorType.SLACK
                 else:
                     generator_type = GeneratorType.PV if generator.regulating else GeneratorType.PQ
-                # Compute base voltage and resistance for per unit conversions
-                base_voltage = bus.base_voltage.value
-                pu_base_voltage = PUBase(value=base_voltage, unit=Unit.KV)
-                base_resistance = base_voltage ** 2 / base_power
-                pu_base_resistance = PUBase(value=base_resistance, unit=Unit.OHM)
 
                 # Get load flow data
                 try:
                     load_flow_generator = load_flow.generators[generator.name]
                     # Read load flow data for active (P) and reactive (Q) powers
-                    active_power = Value(
-                        value=Value.from_dto(load_flow_generator.active_power).to_unit(Unit.MW),
-                        unit=Unit.MW,
-                        base=PUBase(value=base_power, unit=Unit.MW)
-                    )
-                    reactive_power = Value(
-                        value=Value.from_dto(load_flow_generator.reactive_power).to_unit(Unit.MVAR),
-                        unit=Unit.MVAR,
-                        base=PUBase(value=base_power, unit=Unit.MVAR)
-                    )
+                    active_power = Value.from_dto(load_flow_generator.active_power).to_unit(Unit.MW)
+                    reactive_power = Value.from_dto(load_flow_generator.reactive_power).to_unit(Unit.MVAR)
 
                 except KeyError:
                     # No load flow data for this generator
@@ -472,50 +404,14 @@ class Network:
                         # Generator must be found in the load flow results if slack or connected
                         raise LoadFlowException(generator.name, Generator.__name__)
                     # Generator probably disconnected
-                    active_power = Value(
-                        value=0,
-                        unit=Unit.MW,
-                        base=PUBase(value=base_power, unit=Unit.MW)
-                    )
-                    reactive_power = Value(
-                        value=0,
-                        unit=Unit.MVAR,
-                        base=PUBase(value=base_power, unit=Unit.MVAR)
-                    )
-                if generator_type == GeneratorType.PQ:
-                    target_voltage = None
-                else:
-                    # Slack generator, target voltage V and its angle are set
-                    target_voltage = Value(
-                        value=Value.from_dto(generator.target_voltage).to_unit(Unit.KV),
-                        unit=Unit.KV,
-                        base=pu_base_voltage
-                    )
+                    active_power = 0
+                    reactive_power = 0
 
                 # Convert inertia constant to system-based
-                inertia_constant = Value.from_dto(generator.inertia_constant).to_unit(Unit.MWS_PER_MVA) / base_power
+                inertia_constant = Value.from_dto(generator.inertia_constant).to_unit(Unit.MWS_PER_MVA) / BASE_POWER
 
                 # Minimum and maximum powers
-                min_active_power = Value(
-                    value=Value.from_dto(generator.min_active_power).to_unit(Unit.MW),
-                    unit=Unit.MW,
-                    base=PUBase(value=base_power, unit=Unit.MW)
-                )
-                max_active_power = Value(
-                    value=Value.from_dto(generator.max_active_power).to_unit(Unit.MW),
-                    unit=Unit.MW,
-                    base=PUBase(value=base_power, unit=Unit.MW)
-                )
-                min_reactive_power = Value(
-                    value=Value.from_dto(generator.min_reactive_power).to_unit(Unit.MVAR),
-                    unit=Unit.MVAR,
-                    base=PUBase(value=base_power, unit=Unit.MVAR)
-                )
-                max_reactive_power = Value(
-                    value=Value.from_dto(generator.max_reactive_power).to_unit(Unit.MVAR),
-                    unit=Unit.MVAR,
-                    base=PUBase(value=base_power, unit=Unit.MVAR)
-                )
+                max_active_power = Value.from_dto(generator.max_active_power).to_unit(Unit.MW)
                 try:
                     generator_source = GeneratorSource.__getattr__(generator.source.lower())
                 except AttributeError:
@@ -528,22 +424,11 @@ class Network:
                         type=generator_type,
                         source=generator_source,
                         bus=bus,
-                        direct_transient_reactance=Value(
-                            value=Value.from_dto(generator.direct_transient_reactance).to_unit(Unit.OHM),
-                            unit=Unit.OHM,
-                            base=pu_base_resistance
-                        ),
-                        inertia_constant=Value(
-                            value=inertia_constant,
-                            unit=Unit.MWS_PER_MVA
-                        ),
-                        min_active_power=min_active_power,
+                        direct_transient_reactance=Value.from_dto(generator.direct_transient_reactance).to_unit(Unit.OHM),
+                        inertia_constant=inertia_constant,
                         active_power=active_power,
                         max_active_power=max_active_power,
-                        min_reactive_power=min_reactive_power,
                         reactive_power=reactive_power,
-                        max_reactive_power=max_reactive_power,
-                        target_voltage_magnitude=target_voltage,
                         connected=generator.connected
                     )
                 )
@@ -572,16 +457,8 @@ class Network:
                     Load(
                         name=load.name,
                         bus=bus,
-                        active_power=Value(
-                            value=Value.from_dto(load_data.active_power).to_unit(Unit.MW),
-                            unit=Unit.MW,
-                            base=PUBase(value=base_power, unit=Unit.MW)
-                        ),
-                        reactive_power=Value(
-                            value=Value.from_dto(load_data.reactive_power).to_unit(Unit.MVAR),
-                            unit=Unit.MVAR,
-                            base=PUBase(value=base_power, unit=Unit.MVAR)
-                        ),
+                        active_power=Value.from_dto(load_data.active_power).to_unit(Unit.MW),
+                        reactive_power=Value.from_dto(load_data.reactive_power).to_unit(Unit.MVAR),
                         connected=load.connected
                     )
                 )
@@ -595,16 +472,8 @@ class Network:
                     CapacitorBank(
                         name=bank.name,
                         bus=bus,
-                        active_power=Value(
-                            value=Value.from_dto(bank.active_power).to_unit(Unit.MW),
-                            unit=Unit.MW,
-                            base=PUBase(value=base_power, unit=Unit.MW)
-                        ),
-                        reactive_power=Value(
-                            value=-1 * Value.from_dto(bank.reactive_power).to_unit(Unit.MVAR),
-                            unit=Unit.MVAR,
-                            base=PUBase(value=base_power, unit=Unit.MVAR)
-                        )
+                        active_power=Value.from_dto(bank.active_power).to_unit(Unit.MW),
+                        reactive_power=-1 * Value.from_dto(bank.reactive_power).to_unit(Unit.MVAR)
                     )
                 )
 
@@ -614,25 +483,21 @@ class Network:
                 # Get reactive power from load flow results
                 try:
                     load_flow_svc = load_flow.static_var_compensators[svc.name]
-                    reactive_power = Value(
-                        value=-1 * Value.from_dto(load_flow_svc.reactive_power).to_unit(Unit.MVAR),
-                        unit=Unit.MVAR,
-                        base=PUBase(value=base_power, unit=Unit.MVAR)
-                    )
+                    reactive_power = -1 * Value.from_dto(load_flow_svc.reactive_power).to_unit(Unit.MVAR)
                 except KeyError:
                     if svc.connected:
                         # SVC must be found in the load flow results
                         raise LoadFlowException(svc.name, topology_dtos.StaticVarCompensator.__name__)
                     else:
                         # SVC is disconnected
-                        reactive_power = Value(value=0, unit=Unit.MVAR, base=PUBase(value=base_power, unit=Unit.MVAR))
+                        reactive_power = 0
                 # Get bus connected to converter
                 bus = get_element(svc.bus.name, buses, Bus.__name__)
                 bus.add_capacitor_bank(
                     CapacitorBank(
                         name=svc.name,
                         bus=bus,
-                        active_power=Value(value=0, unit=Unit.MW, base=PUBase(value=base_power, unit=Unit.MW)),
+                        active_power=0,
                         reactive_power=reactive_power
                     )
                 )
@@ -645,26 +510,18 @@ class Network:
                     load_flow_hvdc_converter = load_flow.hvdc_converters[hvdc_converter.name]
                     active_power_dto = load_flow_hvdc_converter.active_power
                     active_power_dto.value = -active_power_dto.value
-                    active_power=Value(
-                        value=Value.from_dto(active_power_dto).to_unit(Unit.MW),
-                        unit=Unit.MW,
-                        base=PUBase(value=base_power, unit=Unit.MW)
-                    )
+                    active_power = Value.from_dto(active_power_dto).to_unit(Unit.MW)
                     reactive_power_dto = load_flow_hvdc_converter.reactive_power
                     reactive_power_dto.value = -reactive_power_dto.value
-                    reactive_power = Value(
-                        value=Value.from_dto(reactive_power_dto).to_unit(Unit.MVAR),
-                        unit=Unit.MVAR,
-                        base=PUBase(value=base_power, unit=Unit.MVAR)
-                    )
+                    reactive_power = Value.from_dto(reactive_power_dto).to_unit(Unit.MVAR)
                 except KeyError:
                     if hvdc_converter.connected:
                         # HVDC converter must be found in the load flow results
                         raise LoadFlowException(hvdc_converter.name, topology_dtos.HVDCConverter.__name__)
                     else:
                         # HVDC converter is disconnected
-                        active_power = Value(value=0, unit=Unit.MW, base=PUBase(value=base_power, unit=Unit.MW))
-                        reactive_power = Value(value=0, unit=Unit.MVAR, base=PUBase(value=base_power, unit=Unit.MVAR))
+                        active_power = 0
+                        reactive_power = 0
                 # Get bus connected to converter
                 bus = get_element(hvdc_converter.bus.name, buses, Bus.__name__)
                 bus.add_load(
@@ -707,34 +564,16 @@ class Network:
                 elif element_type == topology_dtos.Line:
                     # Line
                     # Compute base for per unit conversions
-                    sending_bus_base_voltage = first_bus.base_voltage.value
-                    receiving_bus_base_voltage = second_bus.base_voltage.value
-                    base_resistance = sending_bus_base_voltage * receiving_bus_base_voltage / base_power
-                    pu_base_resistance = PUBase(value=base_resistance, unit=Unit.OHM)
-                    pu_base_conductance = PUBase(value=1 / base_resistance, unit=Unit.S)
-
+                    sending_bus_base_voltage = first_bus.base_voltage
+                    receiving_bus_base_voltage = second_bus.base_voltage
+                    base_impedance = sending_bus_base_voltage * receiving_bus_base_voltage / BASE_POWER
                     # Create line model
                     branch[parallel_id] = Line(
-                        resistance=Value(
-                            value=Value.from_dto(element.resistance).to_unit(Unit.OHM),
-                            unit=Unit.OHM,
-                            base=pu_base_resistance
-                        ),
-                        reactance=Value(
-                            value=Value.from_dto(element.reactance).to_unit(Unit.OHM),
-                            unit=Unit.OHM,
-                            base=pu_base_resistance
-                        ),
-                        shunt_conductance=Value(
-                            value=Value.from_dto(element.shunt_conductance).to_unit(Unit.S),
-                            unit=Unit.S,
-                            base=pu_base_conductance
-                        ),
-                        shunt_susceptance=Value(
-                            value=Value.from_dto(element.shunt_susceptance).to_unit(Unit.S),
-                            unit=Unit.S,
-                            base=pu_base_conductance
-                        ),
+                        base_impedance=base_impedance,
+                        resistance=Value.from_dto(element.resistance).to_unit(Unit.OHM),
+                        reactance=Value.from_dto(element.reactance).to_unit(Unit.OHM),
+                        shunt_conductance=Value.from_dto(element.shunt_conductance).to_unit(Unit.S),
+                        shunt_susceptance=Value.from_dto(element.shunt_susceptance).to_unit(Unit.S),
                         closed_at_first_bus=element.closed_at_sending_bus,
                         closed_at_second_bus=element.closed_at_receiving_bus
                     )
@@ -759,9 +598,10 @@ class Network:
                         tap_index = tap_data.tap_numbers.index(element.initial_tap_number)
                         sending_node_voltage = tap_data.sending_node_voltages[tap_index]
                         receiving_node_voltage = tap_data.receiving_node_voltages[tap_index]
-                        ratio = (branch.first_bus.base_voltage.value / sending_node_voltage) \
-                                * (receiving_node_voltage / branch.second_bus.base_voltage.value)
-                        phase_shift_angle = Value(value=tap_data.phase_angles[tap_index], unit=Unit.DEG)
+                        ratio = (branch.first_bus.base_voltage / sending_node_voltage) \
+                                * (receiving_node_voltage / branch.second_bus.base_voltage)
+                        phase_shift_angle_deg = tap_data.phase_angles[tap_index]
+                        phase_shift_angle = np.deg2rad(phase_shift_angle_deg)
                     else:
                         transformer_type = 1
                         ratio = element.ratio
@@ -792,19 +632,19 @@ class Network:
                     if first_node_data.shunt_susceptances[second_bus_index] != second_node_data.shunt_susceptances[first_bus_index]:
                         raise ValueError(f"Shunt susceptance error")
 
-                    pu_base_resistance = PUBase(value=element.base_impedance.value, unit=Unit.OHM)
-                    resistance = float(resistance) * pu_base_resistance.value
-                    reactance = float(reactance) * pu_base_resistance.value
-                    pu_base_admittance = PUBase(value=element.base_impedance.value ** -1, unit=Unit.S)
-                    shunt_conductance = float(shunt_conductance) * pu_base_admittance.value
-                    shunt_susceptance = float(shunt_susceptance) * pu_base_admittance.value
+                    base_impedance = PUBase(value=element.base_impedance.value, unit=Unit.OHM).value
+                    resistance = float(resistance) * base_impedance
+                    reactance = float(reactance) * base_impedance
+                    shunt_conductance = float(shunt_conductance) / base_impedance
+                    shunt_susceptance = float(shunt_susceptance) / base_impedance
 
                     # Create transformer model
                     branch[parallel_id] = Transformer(
-                        resistance=Value(value=resistance, unit=Unit.OHM, base=pu_base_resistance),
-                        reactance=Value(value=reactance, unit=Unit.OHM, base=pu_base_resistance),
-                        shunt_conductance=Value(value=shunt_conductance, unit=Unit.S, base=pu_base_admittance),
-                        shunt_susceptance=Value(value=shunt_susceptance, unit=Unit.S, base=pu_base_admittance),
+                        base_impedance=base_impedance,
+                        resistance=resistance,
+                        reactance=reactance,
+                        shunt_conductance=shunt_conductance,
+                        shunt_susceptance=shunt_susceptance,
                         ratio=ratio,
                         phase_shift_angle=phase_shift_angle,
                         sending_node=element.sending_node,
@@ -824,7 +664,6 @@ class Network:
         return cls(
             buses=list(buses.values()),
             breakers=breakers,
-            base_power=Value.from_dto(network_topology.base_power)
         )
 
     def provide_events(self, failure_events: List['Event'], mitigation_events: List['Event']) -> bool:
@@ -837,10 +676,6 @@ class Network:
         :param mitigation_events: List of mitigation events use to derive the post-fault state.
         :return: a bool signaling whether the fault happened on a disconnected line, thus ending the execution
         """
-        # Remove during and post-fault simplified networks
-        self._simplified_networks[NetworkState.DURING_FAULT] = None
-        self._simplified_networks[NetworkState.POST_FAULT] = None
-
         # Copy events so that any modification of an event will not be replicated in this network
         self._failure_events = failure_events
         self._mitigation_events = mitigation_events
@@ -848,22 +683,20 @@ class Network:
         # The pre-fault network is common to every parallel seq file, it is computed in the main
 
         # Derive during fault network
-        during_fault_network = self.duplicate()
         relevant_fault_event = False
         for fault in self._failure_events:
-            relevant_fault_event += fault.apply_to_network(during_fault_network)
+            relevant_fault_event += fault.apply_to_network(self)
         # If all the failure events happen on disconnected element, then cancel the entire execution
         # However, if any of the failures happens on a live element, continue the computation
         if not relevant_fault_event:
             raise IOError("Failure events happening on disconnected elements, cancelling execution")
 
-        self._simplified_networks[NetworkState.DURING_FAULT] = during_fault_network.get_simplified_network()
+        self._simplified_networks[NetworkState.DURING_FAULT] = self.get_simplified_network()
 
         # Derive post fault network
-        post_fault_network = during_fault_network
         for mitigation in self._mitigation_events:
             try:
-                mitigation.apply_to_network(post_fault_network)
+                mitigation.apply_to_network(self)
             # If a mitigation event happens on an open line is inconsequential
             except IOError:
                 pass
@@ -871,7 +704,7 @@ class Network:
                 print("Warning: opening a circuit breaker that is already open is impossible")
                 pass
 
-        self._simplified_networks[NetworkState.POST_FAULT] = post_fault_network.get_simplified_network()
+        self._simplified_networks[NetworkState.POST_FAULT] = self.get_simplified_network()
 
     def get_disconnected_buses(self, state: NetworkState):
         """
@@ -944,45 +777,44 @@ class Network:
                 update_references(bus_map, second_bus, first_bus)
                 coupled_buses[second_bus] = first_bus
                 bus_map[first_bus].append(second_bus)
+
         # Remove buses that were coupled to another one
-        network.buses = [bus for bus in network.buses if bus not in coupled_buses]
+        network_buses_short = [bus for bus in network.buses if bus not in coupled_buses]
         # No breaker in the simplified network as buses were merged
         network.breakers.clear()
 
         # Get graph corresponding to network where nodes are buses and vertices are branches
+        edges = [
+            (branch.first_bus.name, branch.second_bus.name)
+            for bus in network_buses_short
+            for branch in bus.branches
+            if branch.closed
+        ]
         network_graph = nx.Graph()
-        edges = []
-        for bus in network.buses:
-            for branch in bus.branches:
-                if branch.closed:
-                    edges.append((branch.first_bus.name, branch.second_bus.name))
         network_graph.add_edges_from(edges)
 
         # Get the largest set of connected buses
         connected_buses = max(nx.connected_components(network_graph), key=len)
-        disconnected_buses = []
-        buses = []
-        for bus in network.buses:
-            if bus.name in connected_buses:
-                buses.append(bus)
-            else:
-                disconnected_buses += bus.coupled_bus_names
-        network.buses = buses
+        connected_buses_set = set(connected_buses)
+        disconnected_buses = list(chain.from_iterable(
+            bus.coupled_bus_names for bus in network_buses_short if bus.name not in connected_buses_set
+        ))
+        network_buses_short = [bus for bus in network_buses_short if bus.name in connected_buses_set]
 
         # Raise an error if more than one slack bus is connected
-        slack_bus_names = [bus.name for bus in network.buses if bus.type == BusType.SLACK]
+        slack_bus_names = [bus.name for bus in network_buses_short if bus.type == BusType.SLACK]
         if len(slack_bus_names) > 1:
             raise MultipleSlackBusException(slack_bus_names)
         if not slack_bus_names:
             raise NoSlackBusException()
 
         analyzed_branches = set()
-        for bus in network.buses:
-            branches = list()
+        for bus in network_buses_short:
+            branches = set()
             for branch in bus.branches:
                 if branch in analyzed_branches:
                     # Branch already considered
-                    branches.append(branch)
+                    branches.add(branch)
                     continue
                 # Remove opened branches and branches whose at least one of the extremities is not in the set of
                 # connected buses
@@ -991,37 +823,34 @@ class Network:
                     branch.first_bus.name in connected_buses and
                     branch.second_bus.name in connected_buses
                 ):
-                    elements = dict()
-                    for parallel_id in branch.parallel_elements:
-                        # Keep only closed elements
-                        if branch.parallel_elements[parallel_id].closed:
-                            elements[parallel_id] = branch.parallel_elements[parallel_id]
-                    branch.parallel_elements = elements
+                    branch.parallel_elements = {
+                        k: v for k, v in branch.parallel_elements.items() if v.closed
+                    }
                     analyzed_branches.add(branch)
-                    branches.append(branch)
+                    branches.add(branch)
             bus.branches = branches
 
             # Remove generators and loads that are not connected
-            bus.generators = [generator for generator in bus.generators if generator.connected]
-            bus.loads = [load for load in bus.loads if load.connected]
+            bus.generators = set(generator for generator in bus.generators if generator.connected)
+            bus.loads = set(load for load in bus.loads if load.connected)
 
         # Add fictive buses for the internal voltage of each generator
         fictive_buses = list()
-        for bus in network.buses:
+        for bus in network_buses_short:
+            base_voltage = bus.base_voltage
             for generator in bus.generators:
                 if not generator.connected or generator.bus.type == BusType.GEN_INT_VOLT:
                     # Consider only connected generators that are not already connected to a fictive bus
                     continue
                 # Create fictive bus for the generator
-                base_voltage = bus.base_voltage.to_unit(Unit.KV)
                 internal_voltage = generator.internal_voltage
                 voltage_magnitude = abs(internal_voltage) * base_voltage
-                phase_angle = phase(internal_voltage) * 180 / pi
+                phase_angle = phase(internal_voltage)
                 fictive_generator_bus = Bus(
                     name=f"INTERNAL_VOLTAGE_{generator.name}",
-                    base_voltage=Value(base_voltage, Unit.KV),
-                    voltage_magnitude=Value(voltage_magnitude, Unit.KV, PUBase(base_voltage, Unit.KV)),
-                    phase_angle=Value(phase_angle, Unit.DEG),
+                    base_voltage=base_voltage,
+                    voltage_magnitude=voltage_magnitude,
+                    phase_angle=phase_angle,
                     type=BusType.GEN_INT_VOLT
                 )
                 fictive_generator_bus.add_generator(generator)
@@ -1029,18 +858,14 @@ class Network:
                 fictive_buses.append(fictive_generator_bus)
                 # Create a branch between fictive and real buses with a single line whose reactance if the generator
                 # direct transient reactance
-                base_impedance = base_voltage ** 2 / network.base_power.to_unit(Unit.MVA)
-                base_admittance = 1 / base_impedance
+                base_impedance = base_voltage ** 2 / BASE_POWER
                 branch = Branch(fictive_generator_bus, bus)
                 fictive_generator_line = Line(
-                    resistance=Value(0, Unit.OHM, PUBase(base_impedance, Unit.OHM)),
-                    reactance=Value(
-                        generator.direct_transient_reactance * base_impedance,
-                        Unit.OHM,
-                        PUBase(base_impedance, Unit.OHM)
-                    ),
-                    shunt_conductance=Value(0, Unit.S, PUBase(base_admittance, Unit.S)),
-                    shunt_susceptance=Value(0, Unit.S, PUBase(base_admittance, Unit.S))
+                    base_impedance=base_impedance,
+                    resistance=0,
+                    reactance=generator.direct_transient_reactance_pu * base_impedance,
+                    shunt_conductance=0,
+                    shunt_susceptance=0
                 )
                 branch["1"] = fictive_generator_line
                 fictive_generator_bus.add_branch(branch)
@@ -1049,22 +874,26 @@ class Network:
             if bus.type != BusType.GEN_INT_VOLT:
                 # All the generators should be connected to a fictive bus
                 bus.generators.clear()
-        network.buses += fictive_buses
+        network_buses_short += fictive_buses
 
-        return SimplifiedNetwork(buses=network.buses, base_power=network.base_power), disconnected_buses
+        return SimplifiedNetwork(buses=network_buses_short), disconnected_buses
 
     def _compute_generator_voltage_amplitude_product(self):
         """
         Compute the product of internal voltage amplitudes for each pair of generators in the network.
         """
-        generator_voltage_product_amplitudes = dict()
-        name_voltage_pairs = [(generator.name, generator.internal_voltage) for generator in self.generators]
-        for n, (name1, voltage1) in enumerate(name_voltage_pairs):
-            for (name2, voltage2) in name_voltage_pairs[n:]:
-                # Compute product
-                product = abs(voltage1 * voltage2)
+        generators = self.generators
+        nb_generators = len(generators)
+        name_voltage = [(g.name, abs(g.internal_voltage)) for g in generators]
+        generator_voltage_product_amplitudes = {}
+        for i in range(nb_generators):
+            name1, voltage1 = name_voltage[i]
+            for j in range(i, nb_generators):
+                name2, voltage2 = name_voltage[j]
+                product = voltage1 * voltage2
                 generator_voltage_product_amplitudes[(name1, name2)] = product
-                generator_voltage_product_amplitudes[(name2, name1)] = product
+                if i != j:
+                    generator_voltage_product_amplitudes[(name2, name1)] = product
         return generator_voltage_product_amplitudes
 
     @lru_cache(maxsize=None)
@@ -1099,31 +928,13 @@ class Network:
             return admittances[(bus1_name, bus2_name)]
         except KeyError:
             # Compute admittance amplitude and angle
-            network = self.get_state(state)
-            admittance_matrix = network.admittance_matrix.reduction
+            simplified_network = self.get_state(state)
+            admittance_matrix = simplified_network.admittance_matrix.reduction
             admittance = admittance_matrix[bus1_name, bus2_name]
             amplitude = abs(admittance)
             angle = phase(admittance)
             admittances[(bus1_name, bus2_name)] = (amplitude, angle)
             return amplitude, angle
-
-    def _build_bus_coupling_map(self) -> DefaultDict[Bus, Set[Bus]]:
-        """
-        Create a map describing how buses are coupled.
-        Each bus of the map is associaed the list of the other buses to which it is coupled.
-
-        :return: The cooupling map.
-        """
-        coupling_map = defaultdict(set)
-        for breaker in self.breakers:
-            if not breaker.closed:
-                # Breaker is opened
-                continue
-            first_bus = breaker.first_bus
-            second_bus = breaker.second_bus
-            coupling_map[first_bus].add(second_bus)
-            coupling_map[second_bus].add(first_bus)
-        return coupling_map
 
     @staticmethod
     def _get_buses_in_perimeter(bus: Bus, diameter: int) -> Set[Bus]:
@@ -1337,19 +1148,18 @@ class Network:
         )
 
 
-class SimplifiedNetwork(Network):
+class SimplifiedNetwork:
     """
-    Distribution network without any breaker.
+    Transmission network without any breaker.
     """
 
-    def __init__(self, buses: List[Bus], base_power: Value):
+    def __init__(self, buses: List[Bus]):
         """
         Initialize with a list of its buses.
 
         :param buses: List of the buses in the topology.
-        :param base_power: System base power.
         """
-        super().__init__(buses=buses, breakers=[], base_power=base_power)
+        self.buses = buses
         self._admittance_matrix = None
 
     @property
@@ -1374,4 +1184,8 @@ class SimplifiedNetwork(Network):
         :param second_bus_name: Name of the second bus connected to the branch.
         :raise SimplifiedNetworkBreakerException in any case.
         """
-        raise SimplifiedNetworkBreakerExcepion(first_bus_name, second_bus_name)
+        raise SimplifiedNetworkBreakerException(first_bus_name, second_bus_name)
+
+    @property
+    def generators(self):
+        return [gen for bus in self.buses for gen in bus.generators]

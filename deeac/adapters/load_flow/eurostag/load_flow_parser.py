@@ -161,7 +161,7 @@ class EurostagLoadFlowParser(LoadFlowParser):
         self._current_origin_node_name = None
 
         # Exception collector
-        self._exception_collector: DEEACExceptionCollector = DEEACExceptionCollector()
+        self._exception_collector = DEEACExceptionCollector()
 
         # Generate element types only once to increase performances
         self._elements_types = {}

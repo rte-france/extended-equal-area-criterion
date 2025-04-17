@@ -21,13 +21,9 @@ class Generator(BaseModel):
     name: str
     connected: bool
     bus: Bus
-    min_active_power: Value
     active_power: Optional[Value]
     max_active_power: Value
-    min_reactive_power: Value
     reactive_power: Optional[Value]
-    max_reactive_power: Value
-    target_voltage: Optional[Value]
     direct_transient_reactance: Value
     inertia_constant: Value
     source: Optional[str]

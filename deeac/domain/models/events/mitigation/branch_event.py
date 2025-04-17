@@ -109,6 +109,6 @@ class BranchEvent(MitigationEvent):
                 bus = branch.second_bus
                 element.closed_at_second_bus = False
             # Remove loads from line short circuit
-            bus.loads = [load for load in bus.loads if load.name != fictive_load_name]
+            bus.loads = set(load for load in bus.loads if load.name != fictive_load_name)
         else:
             raise NotImplementedError("Event to close a line or TFO is not implemented yet.")

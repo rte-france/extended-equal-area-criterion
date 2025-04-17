@@ -11,7 +11,6 @@ from typing import Dict, List, TYPE_CHECKING
 import numpy as np
 from enum import Enum
 
-from .value import Value, Unit
 from deeac.domain.exceptions import (
     DisconnectedElementException, ZeroDirectTransientReactanceException, UnknownRotorAngleException,
     UnknownAngularSpeedException, UnknownNetworkStateException
@@ -19,6 +18,8 @@ from deeac.domain.exceptions import (
 if TYPE_CHECKING:
     from .bus import Bus
     from .network import NetworkState
+
+from deeac.domain.models.constants import BASE_POWER
 
 
 class GeneratorType(Enum):
@@ -50,9 +51,10 @@ class Generator:
     """
 
     def __init__(
-        self, name: str, type: GeneratorType, bus: 'Bus', direct_transient_reactance: Value, inertia_constant: Value,
-        min_active_power: Value, active_power: Value, max_active_power: Value, min_reactive_power: Value,
-        reactive_power: Value, max_reactive_power: Value, target_voltage_magnitude: Value,
+        self, name: str, type: GeneratorType, bus: 'Bus',
+        direct_transient_reactance: float, inertia_constant: float,
+        active_power: float, max_active_power: float,
+        reactive_power: float,
         connected: bool = True, source: GeneratorSource = None
     ):
         """
@@ -61,14 +63,11 @@ class Generator:
         :param name: Name of the generator.
         :param type: Type of generator (PV or PQ).
         :param bus: Bus to which the generator is connected.
-        :param direct_transient_reactance: Direct axis transient reactance of the generator.
-        :param inertia_constant: Constant of inertia of the generator.
-        :param min_active_power: Minimum active power of the generator.
-        :param active_power: Active power of the generator.
-        :param max_active_power: Maximum active power of the generator.
-        :param reactive_power: Minimum reactive power of the generator.
-        :param reactive_power: Reactive power of the generator.
-        :param reactive_power: Maximum reactive power of the generator.
+        :param direct_transient_reactance: Direct axis transient reactance of the generator. Unit: Ohm.
+        :param inertia_constant: Constant of inertia of the generator. Unit: MWs / MVA
+        :param active_power: Active power of the generator. Unit: MW.
+        :param max_active_power: Maximum active power of the generator. Unit: MW.
+        :param reactive_power: Reactive power of the generator. Unit: MVAr.
         :param target_voltage_magnitude: Target voltage magnitude applied by the generator in case of a PV generator.
         :param connected: True if the generator is connected to the network, False otherwise.
         :raise ZeroDirectTransientReactanceExeption if direct transient reactance is equal to 0.
@@ -76,22 +75,22 @@ class Generator:
         self.name = name
         self.type = type
         self._bus = bus
-        self._direct_transient_reactance = direct_transient_reactance
+
+        base_reactance = bus.base_voltage ** 2 / BASE_POWER
+        self._direct_transient_reactance_pu = direct_transient_reactance / base_reactance
         self._inertia_constant = inertia_constant
-        self._min_active_power = min_active_power
-        self._active_power = active_power
-        self._max_active_power = max_active_power
-        self._min_reactive_power = min_reactive_power
-        self._reactive_power = reactive_power
-        self._max_reactive_power = max_reactive_power
-        self._target_voltage_magnitude = target_voltage_magnitude
+
+        self._active_power_pu = active_power / BASE_POWER
+        self._max_active_power_pu = max_active_power / BASE_POWER
+        self._reactive_power_pu = reactive_power / BASE_POWER
+
         self.connected = connected
         self.source = source
 
         # Compute properties
-        self._complex_power = complex(self._active_power.per_unit, self._reactive_power.per_unit)
+        self._complex_power = complex(self._active_power_pu, self._reactive_power_pu)
         try:
-            self._direct_transient_admittance = 1 / complex(0, self._direct_transient_reactance.per_unit)
+            self._direct_transient_admittance = 1 / complex(0, self._direct_transient_reactance_pu)
         except ZeroDivisionError:
             raise ZeroDirectTransientReactanceException(name)
         self.compute_internal_voltage()
@@ -102,9 +101,9 @@ class Generator:
         """
         return (
             f"Generator: Name=[{self.name}] Type=[{self.type.name}] Bus=[{self._bus.name}] "
-            f"x'd=[{self._direct_transient_reactance}] H=[{self._inertia_constant}] Pmin=[{self._min_active_power}] "
-            f"P=[{self._active_power}] Pmax=[{self._max_active_power}] Qmin=[{self._min_reactive_power}] "
-            f"Q=[{self._reactive_power}] Qmax=[{self._max_reactive_power}] |Vt|=[{self._target_voltage_magnitude}] "
+            f"x'd=[{self.direct_transient_reactance}] H=[{self._inertia_constant}] "
+            f"P=[{self.active_power}] Pmax=[{self.max_active_power}]  "
+            f"Q=[{self.reactive_power}] "
             f"Connected=[{self.connected}]"
         )
 
@@ -124,7 +123,7 @@ class Generator:
         # Compute conjugate of internal current (I = S / V)
         conj_current = np.conj(self._complex_power / self._bus.voltage)
         # E = V + jXI
-        self._internal_voltage = complex(self._bus.voltage, self._direct_transient_reactance.per_unit * conj_current)
+        self._internal_voltage = complex(self._bus.voltage, self._direct_transient_reactance_pu * conj_current)
         # Get rotor angle
         self._rotor_angle = np.angle(self._internal_voltage)
 
@@ -148,30 +147,46 @@ class Generator:
         self.compute_internal_voltage()
 
     @property
-    def max_active_power(self) -> float:
+    def max_active_power_pu(self) -> float:
         """
         Return the maximum active power in per unit.
         """
-        return self._max_active_power.per_unit
+        return self._max_active_power_pu
 
     @property
-    def active_power(self) -> float:
+    def max_active_power(self) -> float:
+        """
+        Return the maximum active power in MW.
+        """
+        return self._max_active_power_pu * BASE_POWER
+
+    @property
+    def active_power_pu(self) -> float:
         """
         Return the active power in per unit.
         """
-        return self._active_power.per_unit
+        return self._active_power_pu
 
     @property
-    def active_power_value(self) -> float:
+    def active_power(self) -> float:
         """
         Return the active power value.
 
         :return: The active power value in MW.
         """
-        return self._active_power.value
+        return self._active_power_pu * BASE_POWER
 
     @property
-    def direct_transient_reactance(self) -> float:
+    def reactive_power(self) -> float:
+        """
+        Return the reactive power value.
+
+        :return: The reactive power value in MVAr.
+        """
+        return self._reactive_power_pu * BASE_POWER
+
+    @property
+    def direct_transient_reactance_pu(self) -> float:
         """
         Return the direct transient reactance in per unit
 
@@ -180,7 +195,20 @@ class Generator:
         """
         if not self.connected:
             raise DisconnectedElementException(repr(self), Generator.__name__)
-        return self._direct_transient_reactance.per_unit
+        return self._direct_transient_reactance_pu
+
+    @property
+    def direct_transient_reactance(self) -> float:
+        """
+        Return the direct transient reactance
+
+        :return: Direct transient reactance in Ohm.
+        :raise DisconnectedElementException if the generator is disconnected.
+        """
+        if not self.connected:
+            raise DisconnectedElementException(repr(self), Generator.__name__)
+        base_reactance = self.bus.base_voltage ** 2 / BASE_POWER
+        return self._direct_transient_reactance_pu * base_reactance
 
     @property
     def direct_transient_admittance(self) -> complex:
@@ -238,7 +266,7 @@ class Generator:
 
         :return: The inertia coefficient.
         """
-        return 2 * self._inertia_constant.to_unit(Unit.MWS_PER_MVA)
+        return 2 * self._inertia_constant
 
 
 class DynamicGenerator:
@@ -308,18 +336,18 @@ class DynamicGenerator:
         return self._generator.bus
 
     @property
-    def active_power(self) -> float:
+    def active_power_pu(self) -> float:
         """
         Return the active power in per unit.
         """
-        return self._generator.active_power
+        return self._generator.active_power_pu
 
     @property
-    def max_active_power(self) -> float:
+    def max_active_power_pu(self) -> float:
         """
         Return the maximum active power in per unit.
         """
-        return self._generator.max_active_power
+        return self._generator.max_active_power_pu
 
     @property
     def mechanical_power(self) -> float:

@@ -25,7 +25,12 @@ class EAC:
     transient stability study.
     """
 
-    def __init__(self, omib: OMIB, angle_increment: float = np.pi / 1800, max_integration_angle: float = 2 * np.pi):
+    def __init__(self,
+                 omib: OMIB,
+                 angle_increment: float = np.pi / 1800,
+                 max_integration_angle: float = 2 * np.pi,
+                 exploration_angle_increment_factor: int = 15,
+                 exploration_last_angle_increment_factor: int = 20):
         """
         Initialize the EAC service.
 
@@ -44,6 +49,9 @@ class EAC:
 
         # Increment for critical angle search
         self._angle_increment = angle_increment
+        self._exploration_angle_increment_factor = exploration_angle_increment_factor
+        self._exploration_last_angle_increment_factor = exploration_last_angle_increment_factor
+
         # Maximum integration angle
         self._max_integration_angle = max_integration_angle
 
@@ -51,7 +59,9 @@ class EAC:
         self._critical_clearing_angle = None
         self._maximum_angle = None
 
-    def _get_trajectory_power_area(self, from_rotor_angle: float, to_rotor_angle: float, state: NetworkState) -> float:
+    def _get_trajectory_power_area(self, from_rotor_angle: float, to_rotor_angle: float, state: NetworkState,
+                                   angle_shift: float, constant_electric_power: float,
+                                   maximum_electric_power: float) -> float:
         """
         Compute the power area between two OMIB rotor angles based on the trajectory corresponding to the provided
         network state.
@@ -60,14 +70,11 @@ class EAC:
         :param to_rotor_angle: Ending angle (rad).
         :param state: Network state to consider for the rotor angle trajectory. Only during and post-fault states are
                       allowed.
+        :param angle_shift: Precomputed angle shift.
+        :param constant_electric_power: Precomputed constant electric power.
+        :param maximum_electric_power: Precomputed maximum electric power.
         :return: The area between from_angle and to_angle along the OMIB trajectory.
         """
-        # Get OMIB properties
-        angle_shift, constant_electric_power, maximum_electric_power = self._omib.get_properties(
-            state,
-            from_rotor_angle
-        )
-
         # Compute area
         power_difference = self._omib.mechanical_power - constant_electric_power
         cosine_difference = np.cos(to_rotor_angle - angle_shift) - np.cos(from_rotor_angle - angle_shift)
@@ -86,6 +93,11 @@ class EAC:
                       allowed.
         """
         update_angles = [angle for angle, _, network_state in self._omib.update_angles if network_state == state]
+
+        # Retrieve the OMIB properties once for all the angles in the range
+        angle_shift, constant_electric_power, maximum_electric_power \
+            = self._omib.get_properties(state, from_rotor_angle)
+
         start_angle = from_rotor_angle
         area = 0
         for update_angle in update_angles[1:]:
@@ -96,11 +108,13 @@ class EAC:
                 # Do not consider updates after ending rotor angle
                 break
 
-            area += self._get_trajectory_power_area(start_angle, update_angle, state)
+            area += self._get_trajectory_power_area(start_angle, update_angle, state, angle_shift,
+                                                    constant_electric_power, maximum_electric_power)
             start_angle = update_angle
 
         # Add last area to the final angle
-        area += self._get_trajectory_power_area(start_angle, to_rotor_angle, state)
+        area += self._get_trajectory_power_area(start_angle, to_rotor_angle, state, angle_shift,
+                                                constant_electric_power, maximum_electric_power)
         return area
 
     def _get_critical_and_maximum_angles(self) -> Tuple[float, float]:
@@ -112,23 +126,23 @@ class EAC:
         """
         # Define the angle increment based on the swing state
         angle_increment = self._angle_increment * self._swing_factor
+        big_angle_increment = angle_increment * self._exploration_angle_increment_factor
+        big_last_angle_increment = angle_increment * self._exploration_last_angle_increment_factor
         # Current rotor angle and last angle to consider when computing deceleration area
         angle = self._omib.initial_rotor_angle
-        last_angle = angle + angle_increment
+        last_angle = angle + big_angle_increment
 
         # Candidate critical and maximum angles
         candidate_cc_angle = self._omib.initial_rotor_angle
         candidate_maximum_angle = self._omib.initial_rotor_angle
 
         # Find last possible candidate critical angle, as it will be the critical one
+        acceleration_area = 0
+        angle_exploration_mode = True
+
         while angle * self._swing_factor < self._max_integration_angle:
-            # Get acceleration area
-            acceleration_area = self._get_power_area(
-                self._omib.initial_rotor_angle,
-                angle,
-                self._during_state
-            )
             # Get angle at which areas are similar, as it is a candidate
+            last_angle_exploration_mode = True
             while last_angle * self._swing_factor <= self._max_integration_angle:
                 deceleration_area = self._get_power_area(
                     angle,
@@ -136,11 +150,18 @@ class EAC:
                     self._post_state
                 )
                 if acceleration_area + deceleration_area <= 0:
-                    # Found the point where area are (almost) similar -> new candidate found
-                    candidate_cc_angle = angle
-                    candidate_maximum_angle = last_angle
-                    break
-                last_angle += angle_increment
+                    if last_angle_exploration_mode:
+                        last_angle_exploration_mode = False
+                        last_angle -= big_last_angle_increment
+                    else:
+                        # Found the point where area are (almost) similar -> new candidate found
+                        candidate_cc_angle = angle
+                        candidate_maximum_angle = last_angle
+                        break
+                if last_angle_exploration_mode:
+                    last_angle += big_last_angle_increment
+                else:
+                    last_angle += angle_increment
 
             if last_angle * self._swing_factor > self._max_integration_angle:
                 # No new candidate was found
@@ -156,16 +177,30 @@ class EAC:
                     self._post_state
                 )
                 if self._swing_factor * self._omib.mechanical_power <= self._swing_factor * electric_power:
-                    # Candidate angle is the critical one
-                    self._omib.stability_state = OMIBStabilityState.POTENTIALLY_STABLE
-                    return (
-                        candidate_cc_angle,
-                        candidate_maximum_angle
-                    )
+                    if angle_exploration_mode:
+                        angle_exploration_mode = False
+                        angle = angle - big_angle_increment
+                    else:
+                        # Candidate angle is the critical one
+                        self._omib.stability_state = OMIBStabilityState.POTENTIALLY_STABLE
+                        return (
+                            candidate_cc_angle,
+                            candidate_maximum_angle
+                        )
 
             # Try to determine if another candidate exists
-            angle += angle_increment
-            last_angle = angle + angle_increment
+            if angle_exploration_mode:
+                angle += big_angle_increment
+            else:
+                angle += angle_increment
+            last_angle = angle + big_angle_increment
+
+            # Update acceleration area
+            acceleration_area = self._get_power_area(
+                self._omib.initial_rotor_angle,
+                angle,
+                self._during_state
+            )
 
         # Did not find any candidate -> always stable
         self._omib.stability_state = OMIBStabilityState.ALWAYS_STABLE

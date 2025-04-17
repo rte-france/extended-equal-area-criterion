@@ -107,10 +107,8 @@ class TableDescription:
         :param field_name: Name of the field.
         :param field_data: Data of the field.
         """
-        if field_data == "" or field_data.startswith(LOAD_FLOW_NONE_PATTERN):
-            # Nothing to add
-            return
-        load_flow_data_content[field_name] = field_data
+        if field_data and not field_data.startswith(LOAD_FLOW_NONE_PATTERN):
+            load_flow_data_content[field_name] = field_data
 
     def parse_row(self, row: str) -> List[LoadFlowData]:
         """
@@ -127,16 +125,17 @@ class TableDescription:
         (nb_occurences, offset) = self.data_occurences
         for i in range(0, nb_occurences):
             load_flow_data_content = {}
+            i_offset = i * offset
 
             # Columns with single field
             for (column_nb, field_name) in self._single_field_columns.items():
-                column_nb += i * offset
+                column_nb += i_offset
                 field_data = columns[column_nb].strip()
                 self._add_field_data(load_flow_data_content, field_name, field_data)
 
             # Columns with fixed-length fields
             for (column_nb, fields) in self._fixed_length_field_columns.items():
-                column_nb += i * offset
+                column_nb += i_offset
                 column_content = columns[column_nb]
                 for (field_name, field_len, field_position) in fields:
                     field_data = column_content[field_position:field_position + field_len].strip()
@@ -144,7 +143,7 @@ class TableDescription:
 
             # Columns with unbounded-length fields
             for (column_nb, fields) in self._unbounded_length_field_columns.items():
-                column_nb += i * offset
+                column_nb += i_offset
                 column_content = columns[column_nb].split()
                 for (field_name, field_position) in fields:
                     try:

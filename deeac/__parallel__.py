@@ -87,6 +87,14 @@ def run_parallel_fault(
         text_result.append(str(e))
         print("\n".join(text_result))
         return fault_name, "Irrelevant Fault"
+    except Exception as e:
+        text_result.append(str(e))
+        print("\n".join(text_result))
+        result = {
+            "status": "Error",
+            "error_msg": str(e)
+        }
+        return fault_name, result
 
     # Register event processing time
     event_processing_time = datetime.now()

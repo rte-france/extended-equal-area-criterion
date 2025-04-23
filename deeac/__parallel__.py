@@ -12,6 +12,7 @@ from datetime import datetime
 
 from deeac.adapters.events.eurostag import EurostagEventParser
 from deeac.domain.models import NetworkState, DynamicGenerator
+from deeac.domain.models.events.failure import LineShortCircuitEvent
 from deeac.domain.models.eeac_tree import EEACTreeNodeIOType
 from deeac.domain.services.eeac import EEAC
 from deeac.domain.exceptions import DEEACException
@@ -60,16 +61,17 @@ def run_parallel_fault(
 
     # Checking the fault is not impedant
     for failure_event in failure_events:
-        fault_resistance = failure_event.fault_resistance
-        fault_reactance = failure_event.fault_reactance
-        if fault_resistance != 0 or fault_reactance != 0:
-            text_result.append("Faults with non-zero impedance are not yet supported, "
-                               "cancelling execution")
-            print("\n".join(text_result))
-            result = {
-                "status": "Impedant fault"
-            }
-            return fault_name, result
+        if isinstance(failure_event, LineShortCircuitEvent):
+            fault_resistance = failure_event.fault_resistance
+            fault_reactance = failure_event.fault_reactance
+            if fault_resistance != 0 or fault_reactance != 0:
+                text_result.append("Faults with non-zero impedance are not yet supported, "
+                                   "cancelling execution")
+                print("\n".join(text_result))
+                result = {
+                    "status": "Impedant fault"
+                }
+                return fault_name, result
 
     # Register time at which all files are loaded
     file_loading_time = datetime.now()

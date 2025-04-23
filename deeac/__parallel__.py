@@ -47,6 +47,7 @@ def run_parallel_fault(
     text_result = [f"FAULT: {os.path.splitext(os.path.split(seq_file)[1])[0]}"]
     failure_events, mitigation_events = event_loader.load_events()
 
+    # Checking all protections are triggered at the same time
     fault_name = os.path.splitext(os.path.split(seq_file)[-1])[0]
     if event_loader.event_parser.short_circuit_delay is not None:
         text_result.append("Degraded protection case, cancelling execution")
@@ -56,6 +57,19 @@ def run_parallel_fault(
             "interval": f"{event_loader.event_parser.short_circuit_delay}ms"
         }
         return fault_name, result
+
+    # Checking the fault is not impedant
+    for failure_event in failure_events:
+        fault_resistance = failure_event.fault_resistance
+        fault_reactance = failure_event.fault_reactance
+        if fault_resistance != 0 or fault_reactance != 0:
+            text_result.append("Faults with non-zero impedance are not yet supported, "
+                               "cancelling execution")
+            print("\n".join(text_result))
+            result = {
+                "status": "Impedant fault"
+            }
+            return fault_name, result
 
     # Register time at which all files are loaded
     file_loading_time = datetime.now()

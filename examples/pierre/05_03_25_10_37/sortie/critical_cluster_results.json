@@ -1,0 +1,10 @@
+{
+  "braud71pregu": {
+    "status": "POTENTIALLY STABLE",
+    "swing_state": "FORWARD",
+    "critical_cluster": "BLAYAT 1, BLAYAT 4",
+    "node_id": 2,
+    "CCT": 0.2511813852224222,
+    "warning": "1 failed candidates: 2"
+  }
+}

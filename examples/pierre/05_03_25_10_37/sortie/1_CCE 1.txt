@@ -1,0 +1,24 @@
+Report for node 1_CCE 1:
+	Execution time: 4.644 seconds
+	Outputs:
+		Cluster 0:
+			Critical generators: BLAYAT 1
+			Critical angle: 1.125 rad [64.449 deg]
+			Critical time: 297.185 ms
+			Maximum angle: 2.303 rad [64.449 deg]
+			Maximum time: 525.204 ms
+			OMIB stability state: POTENTIALLY STABLE
+			OMIB swing state: FORWARD
+		Cluster 1:
+			Critical generators: BLAYAT 1, BLAYAT 4
+			Critical angle: 0.894 rad [51.22 deg]
+			Critical time: 251.181 ms
+			Maximum angle: 2.13 rad [51.22 deg]
+			Maximum time: 524.886 ms
+			OMIB stability state: POTENTIALLY STABLE
+			OMIB swing state: FORWARD
+	Failed cluster evaluations:
+		Cluster 2:
+			Critical generators: BLAYAT 1, BLAYAT 3, BLAYAT 4
+
+

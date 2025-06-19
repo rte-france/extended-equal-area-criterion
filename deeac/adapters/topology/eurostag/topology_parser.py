@@ -12,7 +12,7 @@ from deeac.domain.ports.topology import TopologyParser
 from deeac.domain.ports.dtos import Value, Unit
 from deeac.domain.ports.dtos.topology import (
     NetworkTopology, Bus, SlackBus, Branch, Line, Transformer1, Transformer8, Breaker, Load, Generator, CapacitorBank,
-    StaticVarCompensator, HVDCConverter
+    StaticVarCompensator, HVDCConverter, ENR
 )
 from deeac.domain.ports.exceptions import (
     BranchParallelException, NetworkElementNameException, NominalTapException
@@ -189,7 +189,7 @@ class EurostagTopologyParser(TopologyParser):
                             raise NominalTapException(
                                     data.nominal_tap_number, sending_bus.name, receiving_bus.name, parallel_id
                                 )
-                        # Base impedance is Z = U_nom^2 / Snom
+                        # Base impedance is Z = U_nom^2 / S_nom
                         base_impedance = nominal_tap.receiving_side_voltage ** 2 / data.rated_apparent_power
 
                         # Taps
@@ -299,13 +299,17 @@ class EurostagTopologyParser(TopologyParser):
                     generator_content = get_element(generator_name, generator_dicts, Generator.__name__)
                     generator_is_load = False
                 except ElementNotFoundException:
-                    # Generator has no dynamic data and will be modeled as a load
-                    generator_name = f"GEN_{generator_name}"
-                    if generator_name in loads:
-                        # Distinct loads should have different names
-                        raise NetworkElementNameException(generator_name, Load.__name__)
-                    generator_content = {"name": generator_name}
-                    generator_is_load = True
+                    # Eolian and Photovoltaic generators have no dynamic data and will still be modeled as ENR
+                    if generator_data.source=="Eolien" or generator_data.source=="Photovol":
+                        continue
+                    else:
+                        # Other generators have no dynamic data and will be modeled as loads
+                        generator_name = f"GEN_{generator_name}"
+                        if generator_name in loads:
+                            # Distinct loads should have different names
+                            raise NetworkElementNameException(generator_name, Load.__name__)
+                        generator_content = {"name": generator_name}
+                        generator_is_load = True
 
                 # Connected bus
                 connected_bus = get_element(generator_data.bus_name, buses, Bus.__name__)
@@ -327,7 +331,7 @@ class EurostagTopologyParser(TopologyParser):
                     generator_reactive_power = Value(value=generator_reactive_power, unit=Unit.MVAR)
                 generator_content["reactive_power"] = generator_reactive_power
 
-                generator_source = Generator
+                #generator_source = Generator
                 generator_content["source"] = generator_data.source
 
                 if generator_is_load:
@@ -343,6 +347,54 @@ class EurostagTopologyParser(TopologyParser):
 
                 # Create generator
                 generators.append(Generator(**generator_content))
+
+        # ENR
+        enr = []
+        enr_names = set()
+        enr_static_data = self.ech_file_parser.get_network_data(EchRecordType.GENERATOR)
+        for enr_data in enr_static_data:
+            with exception_collector:
+                if enr_data.source=="Eolien" or enr_data.source=="Photovol":
+                    # Name
+                    enr_name = enr_data.name
+                    if enr_name in enr_names:
+                        # Distinct enr should have different names
+                        raise NetworkElementNameException(enr_name, ENR.__name__)
+                    enr_names.add(enr_name)
+                    enr_content = {"name": enr_name}
+
+                    # Connected bus
+                    connected_bus = get_element(enr_data.bus_name, buses, Bus.__name__)
+                    enr_content["bus"] = connected_bus
+
+                    # Connection state
+                    enr_content["connected"] = True if enr_data.state == State.CONNECTED else False
+
+                    # Active power (P)
+                    enr_active_power = enr_data.active_power
+                    if enr_active_power is not None:
+                        enr_active_power = Value(value=enr_active_power, unit=Unit.MW)
+                    enr_content["active_power"] = enr_active_power
+                    enr_max_active_power = enr_data.max_active_power
+                    enr_content["max_active_power"] = Value(value=enr_max_active_power, unit=Unit.MW)
+                    # Reactive power (Q)
+                    enr_reactive_power = generator_data.reactive_power
+                    if enr_reactive_power is not None:
+                        enr_reactive_power = Value(value=enr_reactive_power, unit=Unit.MVAR)
+                    enr_content["reactive_power"] = enr_reactive_power
+
+                    #generator_source = Generator
+                    enr_content["source"] = generator_data.source
+
+                    # Regulating mode
+                    enr_content["regulating"] = True \
+                        if enr_data.regulating_mode == GeneratorRegulatingMode.REGULATING else False
+
+                    # Create enr
+                    enr.append(ENR(**enr_content))
+
+                else:
+                    continue
 
         # Capacitor banks
         capacitor_banks = {}
@@ -433,6 +485,7 @@ class EurostagTopologyParser(TopologyParser):
             branches=list(branches.values()),
             loads=list(loads.values()),
             generators=generators,
+            enr = enr,
             capacitor_banks=list(capacitor_banks.values()),
             static_var_compensators=list(svcs.values()),
             hvdc_converters=list(hvdc_converters.values())

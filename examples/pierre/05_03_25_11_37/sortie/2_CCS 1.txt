@@ -1,0 +1,38 @@
+Report for node 2_CCS 1:
+	Execution time: 0.317 seconds
+	Configuration:
+		Type of selector: MinCriticalClusterSelector
+	Inputs:
+		Cluster 0:
+			Critical generators: BLAYAT 1
+			Critical angle: 1.159 rad [66.381 deg]
+			Critical time: 293.206 ms
+			Maximum angle: 2.337 rad [133.881 deg]
+			Maximum time: 519.884 ms
+			OMIB stability state: POTENTIALLY STABLE
+			OMIB swing state: FORWARD
+		Cluster 1:
+			Critical generators: BLAYAT 1, BLAYAT 4
+			Critical angle: 0.929 rad [53.216 deg]
+			Critical time: 246.471 ms
+			Maximum angle: 2.159 rad [123.716 deg]
+			Maximum time: 518.56 ms
+			OMIB stability state: POTENTIALLY STABLE
+			OMIB swing state: FORWARD
+		Cluster 2:
+			Critical generators: BLAYAT 1, BLAYAT 3, BLAYAT 4
+			Critical angle: 0.694 rad [39.768 deg]
+			Critical time: 194.728 ms
+			Maximum angle: 1.996 rad [114.368 deg]
+			Maximum time: 540.92 ms
+			OMIB stability state: POTENTIALLY STABLE
+			OMIB swing state: FORWARD
+	Outputs:
+		Critical generators: BLAYAT 1, BLAYAT 3, BLAYAT 4
+		Critical angle: 0.694 rad [39.768 deg]
+		Critical time: 194.728 ms
+		Maximum angle: 1.996 rad [114.368 deg]
+		Maximum time: 540.92 ms
+		OMIB stability state: POTENTIALLY STABLE
+		OMIB swing state: FORWARD
+

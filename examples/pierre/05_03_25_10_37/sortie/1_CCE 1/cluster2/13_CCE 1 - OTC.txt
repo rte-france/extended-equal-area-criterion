@@ -1,0 +1,7 @@
+Report for node 13_CCE 1 - OTC:
+	Execution was cancelled: Execution of parent node was cancelled.
+	Configuration:
+		Type of calculator: OMIBTaylorSeries
+		Critical angle shift: 4.0 deg
+
+

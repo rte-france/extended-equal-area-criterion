@@ -51,11 +51,9 @@ class Generator:
     """
 
     def __init__(
-        self, name: str, type: GeneratorType, bus: 'Bus',
-        direct_transient_reactance: float, inertia_constant: float,
-        active_power: float, max_active_power: float,
-        reactive_power: float,
-        connected: bool = True, source: GeneratorSource = None
+        self, name: str, type: GeneratorType, bus: 'Bus', direct_transient_reactance: float, inertia_constant: float,
+        active_power: float, max_active_power: float, reactive_power: float, connected: bool = True,
+        source: GeneratorSource = None
     ):
         """
         Initialize a generator.
@@ -68,9 +66,9 @@ class Generator:
         :param active_power: Active power of the generator. Unit: MW.
         :param max_active_power: Maximum active power of the generator. Unit: MW.
         :param reactive_power: Reactive power of the generator. Unit: MVAr.
-        :param target_voltage_magnitude: Target voltage magnitude applied by the generator in case of a PV generator.
         :param connected: True if the generator is connected to the network, False otherwise.
-        :raise ZeroDirectTransientReactanceExeption if direct transient reactance is equal to 0.
+        :param source: source of generator.
+        :raise: ZeroDirectTransientReactanceException if direct transient reactance is equal to 0.
         """
         self.name = name
         self.type = type
@@ -191,7 +189,7 @@ class Generator:
         Return the direct transient reactance in per unit
 
         :return: Direct transient reactance in per unit.
-        :raise DisconnectedElementException if the generator is disconnected.
+        :raise: DisconnectedElementException if the generator is disconnected.
         """
         if not self.connected:
             raise DisconnectedElementException(repr(self), Generator.__name__)
@@ -203,10 +201,11 @@ class Generator:
         Return the direct transient reactance
 
         :return: Direct transient reactance in Ohm.
-        :raise DisconnectedElementException if the generator is disconnected.
+        :raise: DisconnectedElementException if the generator is disconnected.
         """
-        if not self.connected:
-            raise DisconnectedElementException(repr(self), Generator.__name__)
+        #allocation memory crash on debug (exit code 139)
+        #if not self.connected:
+        #    raise DisconnectedElementException(repr(self), Generator.__name__)
         base_reactance = self.bus.base_voltage ** 2 / BASE_POWER
         return self._direct_transient_reactance_pu * base_reactance
 
@@ -438,7 +437,7 @@ class DynamicGenerator:
         Add an angular speed value at a specific time.
 
         :param time: Time associated to the speed value.
-        :param rotor_angle: Angular speed (p.u.) to add.
+        :param angular_speed: Angular speed (p.u.) to add.
         """
         self._angular_speeds[time] = angular_speed
 

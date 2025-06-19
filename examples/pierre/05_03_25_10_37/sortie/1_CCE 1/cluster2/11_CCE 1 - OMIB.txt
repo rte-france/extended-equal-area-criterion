@@ -1,0 +1,6 @@
+Report for node 11_CCE 1 - OMIB:
+	Execution failed due to the following errors: An exception of type KeyboardInterrupt occured - Traceback: File "/home/steveninpie/Documents/Code/EEAC/deeac/domain/models/omib/omib.py", line 312, in _build_state: sine = np.sin(angular_deviation_diff).
+	Configuration:
+		Type of OMIB: ZOOMIB
+
+

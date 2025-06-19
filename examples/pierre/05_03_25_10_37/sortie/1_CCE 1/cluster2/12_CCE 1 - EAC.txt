@@ -1,0 +1,7 @@
+Report for node 12_CCE 1 - EAC:
+	Execution was cancelled: Execution of parent node failed.
+	Configuration:
+		Angle increment: 0.1 deg
+		Maximum OMIB integration angle: 270.0 deg
+
+

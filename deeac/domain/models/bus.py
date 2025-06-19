@@ -13,10 +13,11 @@ from typing import Set
 
 from .load import Load
 from .capacitor_bank import CapacitorBank
+from .enr import ENR
 from .generator import Generator, GeneratorType
 from .branch import Branch
 
-from deeac.domain.exceptions import CoupledBusesException, BusVoltageException
+from deeac.domain.exceptions import CoupledBusesException
 
 
 class BusType(Enum):
@@ -41,12 +42,13 @@ class Bus:
 
         :param name: Name of the bus.
         :param base_voltage: Base voltage for per unit conversions. Unit: kV.
-        :param voltage_magnitude_pu: Voltage magnitude at the bus.
+        :param voltage_magnitude: Voltage magnitude at the bus.
         :param phase_angle: Phase angle at the bus. Unit: rad.
         :param type: Type of the bus. If None, the type is derived from the connected generators.
         """
         self.name = name
         self.branches = set()
+        self.enr = set()
         self.generators = set()
         self.loads = set()
         self.capacitor_banks = set()
@@ -63,6 +65,7 @@ class Bus:
         """
         Representation of a bus.
         """
+        enr = ")(".join([repr(gen) for gen in self.enr])
         generators = ")(".join([repr(gen) for gen in self.generators])
         loads = ")(".join([repr(load) for load in self.loads])
         capacitor_banks = ")(".join([repr(bank) for bank in self.capacitor_banks])
@@ -70,7 +73,7 @@ class Bus:
         return (
             f"Bus: Name=[{self.name}] Type=[{self.type.name}] |Vb|=[{self.base_voltage}] "
             f"|V|=[{self.voltage_magnitude}] \u03C6=[{self.phase_angle}] Generators=[({generators})] "
-            f"Loads=[({loads})] Capacitor banks=[({capacitor_banks})] Branches=[({branches})]"
+            f"ENR=[({enr})] Loads=[({loads})] Capacitor banks=[({capacitor_banks})] Branches=[({branches})]"
         )
 
     @property
@@ -86,7 +89,7 @@ class Bus:
         """
         Update bus voltage.
 
-        :param voltage_magnitude_pu: New voltage magnitude in pu.
+        :param voltage_magnitude: New voltage magnitude in pu.
         :param phase_angle: New phase angle.
         """
         self._voltage_magnitude = voltage_magnitude
@@ -151,6 +154,14 @@ class Bus:
                 type = BusType.PV
         return type
 
+    def add_enr(self, gen: ENR):
+        """
+        Add an ENR to this bus.
+
+        :param gen: ENR to add.
+        """
+        self.enr.add(gen)
+
     def add_generator(self, generator: Generator):
         """
         Add a generator to this bus.
@@ -190,7 +201,7 @@ class Bus:
         Elements connected to the two merged buses are updated during the process.
 
         :param bus: The bus to couple.
-        :raise CoupledBusesException if the two buses cannot be coupled.
+        :raise: CoupledBusesException if the two buses cannot be coupled.
         """
         if (
             self.type == BusType.GEN_INT_VOLT or bus.type == BusType.GEN_INT_VOLT or

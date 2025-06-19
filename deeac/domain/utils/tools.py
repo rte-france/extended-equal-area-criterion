@@ -11,6 +11,7 @@ import sys
 import pickle
 from numpy import array
 from scipy.sparse import csc_matrix
+from scipy.sparse.linalg import splu
 from typing import Dict, Any
 
 from deeac.domain.exceptions import ElementNotFoundException
@@ -27,11 +28,11 @@ def get_element(name: str, elements: Dict[str, Any], element_type: str) -> Any:
     Get an element from a dictionary of elements based on its name.
     The dictionary keys must be the element names.
 
-    :param bus_name: The name of the element to find.
-    :param buses: The dictionary of elements.
+    :param name: The name of the element to find.
+    :param elements: The dictionary of elements.
     :param element_type: Type of element to find in the dictionary
     :return: The element whose name if the one specified as argument.
-    :raise ElementNameException if the element is not in the dictionary.
+    :raise: ElementNameException if the element is not in the dictionary.
     """
     try:
         return elements[name]

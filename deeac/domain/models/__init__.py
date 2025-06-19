@@ -11,6 +11,7 @@ from .bus import Bus, BusType  # noqa
 from .branch import Branch  # noqa
 from .breaker import Breaker, ParallelBreakers  # noqa
 from .capacitor_bank import CapacitorBank  # noqa
+from .enr import ENRType, ENR
 from .generator import Generator, DynamicGenerator, GeneratorType  # noqa
 from .transformer import Transformer  # noqa
 from .line import Line  # noqa

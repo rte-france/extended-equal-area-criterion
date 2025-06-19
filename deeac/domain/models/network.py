@@ -29,6 +29,7 @@ from .bus import Bus, BusType
 from .branch import Branch
 from .breaker import Breaker, ParallelBreakers
 from .capacitor_bank import CapacitorBank
+from .enr import ENR, ENRType
 from .generator import Generator, GeneratorType, GeneratorSource
 from .load import FictiveLoad, Load
 from .line import Line
@@ -192,7 +193,7 @@ class Network:
         that the fictive loads that are added to model a fault are
         not returned.
 
-        :return: The list of non fictive loads.
+        :return: The list of non-fictive loads.
         """
         return [load for bus in self.buses for load in bus.loads
                 if not isinstance(load, FictiveLoad)]
@@ -227,7 +228,7 @@ class Network:
         Note that this bus may have been coupled to another one in the network.
 
         :param bus_name: Name of the bus to identify.
-        :raise ElementNotFoundException if no bus is associated to this name in the topology.
+        :raise: ElementNotFoundException if no bus is associated to this name in the topology.
         """
         try:
             return next(bus for bus in self.buses if bus.name == bus_name or bus_name in bus.coupled_bus_names)
@@ -242,7 +243,7 @@ class Network:
         :param first_bus_name: Name of the first bus connected to the branch.
         :param second_bus_name: Name of the second bus connected to the branch.
         :return: The branch in between the specified buses.
-        :raise ElementNotFoundException if the branch cannot be identified.
+        :raise: ElementNotFoundException if the branch cannot be identified.
         """
         try:
             # Iterator of buses based on their names
@@ -274,8 +275,8 @@ class Network:
 
         :param first_bus_name: Name of the first bus connected to the branch.
         :param second_bus_name: Name of the second bus connected to the branch.
-        :return The parallel breakers between the buses.
-        :raise ElementNotFoundException if the breaker cannot be identified.
+        :return: The parallel breakers between the buses.
+        :raise: ElementNotFoundException if the breaker cannot be identified.
         """
         try:
             # Iterator of breakers based on the bus names
@@ -293,7 +294,7 @@ class Network:
         Get the generator with the specified name.
 
         :param generator_name: Name of the generator.
-        :return: The generator with the specifief name.
+        :return: The generator with the specified name.
         :raise: ElementNotFoundException if the generator is not found.
         """
         try:
@@ -311,8 +312,8 @@ class Network:
         :param parallel_id: Parallel ID identifying the breaker.
         :param closed: True if the breaker must be closed, False otherwise.
 
-        :raise ElementNotFoundException if no breaker can be found between the two buses in the network.
-        :raise ParallelException if no element is at the specified parallel ID on the branch.
+        :raise: ElementNotFoundException if no breaker can be found between the two buses in the network.
+        :raise: ParallelException if no element is at the specified parallel ID on the branch.
         """
         # Get breaker
         parallel_breakers = self.get_parallel_breakers(first_bus_name, second_bus_name)
@@ -395,8 +396,8 @@ class Network:
                 try:
                     load_flow_generator = load_flow.generators[generator.name]
                     # Read load flow data for active (P) and reactive (Q) powers
-                    active_power = Value.from_dto(load_flow_generator.active_power).to_unit(Unit.MW)
-                    reactive_power = Value.from_dto(load_flow_generator.reactive_power).to_unit(Unit.MVAR)
+                    active_power = load_flow_generator.active_power.value
+                    reactive_power = load_flow_generator.reactive_power.value
 
                 except KeyError:
                     # No load flow data for this generator
@@ -407,11 +408,6 @@ class Network:
                     active_power = 0
                     reactive_power = 0
 
-                # Convert inertia constant to system-based
-                inertia_constant = Value.from_dto(generator.inertia_constant).to_unit(Unit.MWS_PER_MVA) / BASE_POWER
-
-                # Minimum and maximum powers
-                max_active_power = Value.from_dto(generator.max_active_power).to_unit(Unit.MW)
                 try:
                     generator_source = GeneratorSource.__getattr__(generator.source.lower())
                 except AttributeError:
@@ -424,12 +420,51 @@ class Network:
                         type=generator_type,
                         source=generator_source,
                         bus=bus,
-                        direct_transient_reactance=Value.from_dto(generator.direct_transient_reactance).to_unit(Unit.OHM),
-                        inertia_constant=inertia_constant,
+                        direct_transient_reactance=generator.direct_transient_reactance.value,
+                        inertia_constant=generator.inertia_constant.value / BASE_POWER,
+                        active_power=active_power,
+                        max_active_power=generator.max_active_power.value,
+                        reactive_power=reactive_power,
+                        connected=generator.connected
+                    )
+                )
+
+        # Create ENR
+        for enr in network_topology.enr:
+            with exception_collector:
+                # Get bus connected to generator
+                bus = get_element(enr.bus.name, buses, Bus.__name__)
+                # Set type of generator
+                enr_type = ENRType.PV if enr.regulating else ENRType.PQ
+
+                # Get load flow data (ENR Data come from generators load flow data)
+                try:
+                    load_flow_generator = load_flow.generators[enr.name]
+                    # Read load flow data for active (P) and reactive (Q) powers
+                    active_power = load_flow_generator.active_power
+                    reactive_power = load_flow_generator.reactive_power
+                except KeyError:
+                    # No load flow data for this ENR
+                    if enr.connected:
+                        # ENR must be found in the load flow results if connected
+                        raise LoadFlowException(enr.name, ENR.__name__)
+                    # ENR probably disconnected
+                    active_power = 0
+                    reactive_power = 0
+
+                # Minimum and maximum powers
+                max_active_power = enr.max_active_power.value
+
+                # Create ENR model and connect it to its bus
+                bus.add_enr(
+                    ENR(
+                        name=enr.name,
+                        type=enr_type,
+                        bus=bus,
                         active_power=active_power,
                         max_active_power=max_active_power,
                         reactive_power=reactive_power,
-                        connected=generator.connected
+                        connected=enr.connected
                     )
                 )
 
@@ -477,7 +512,7 @@ class Network:
                     )
                 )
 
-        # Create static var compensators (modelled as capacitor banks)
+        # Create static var compensator (modelled as capacitor banks)
         for svc in network_topology.static_var_compensators:
             with exception_collector:
                 # Get reactive power from load flow results
@@ -666,7 +701,7 @@ class Network:
             breakers=breakers,
         )
 
-    def provide_events(self, failure_events: List['Event'], mitigation_events: List['Event']) -> bool:
+    def provide_events(self, failure_events: List['Event'], mitigation_events: List['Event']):
         """
         Provide the failure and mitigation events to allow the computation of the simplified networks in specific
         states. Providing new events will recompute the network states, ignoring events that may already have been
@@ -725,7 +760,7 @@ class Network:
 
         :param state: The state for which the simplified network is requested.
         :return: The simplified network in the expected state.
-        :raise NetworkStateException if a state requires events that were not provided previously.
+        :raise: NetworkStateException if a state requires events that were not provided previously.
         """
         if self._simplified_networks[state] is None:
             # Events were not provided
@@ -743,10 +778,9 @@ class Network:
         This function also returns the list of the names of the buses that were discarded during the graph analysis to
         create this simplified version of the network.
 
-        :param state: The state for which the simplified network is requested.
         :return: The simplified network in the expected state and the list of the names of the buses that were
                  discarded.
-        :raise NetworkEventException if a state requires events that were not provided previously.
+        :raise: NetworkEventException if a state requires events that were not provided previously.
         """
         # Copy network
         network = self.duplicate()
@@ -1025,7 +1059,7 @@ class Network:
         """
         Generate a graph representation of the network around a bus.
         This drawing is performed for a specific state.
-        The representation is outputed in a file. If the path exists, it is replaced.
+        The representation is output in a file. If the path exists, it is replaced.
 
         :param output_file: Path to an output file.
         :param state: Network state to consider.
@@ -1075,7 +1109,7 @@ class Network:
         Generate a graph representation of the network around the closest buses to the faults.
         This drawing is performed for the during fault state, starting from the pre-fault state, and highlighting
         elements discarded during the fault.
-        The representation is outputed in a file. If the path exists, it is replaced.
+        The representation is output in a file. If the path exists, it is replaced.
 
         :param output_file: Path to an output file.
         :param diameter: Diameter (i.e. number of buses) to consider around the closest buses to the faults. It allows
@@ -1182,7 +1216,7 @@ class SimplifiedNetwork:
 
         :param first_bus_name: Name of the first bus connected to the branch.
         :param second_bus_name: Name of the second bus connected to the branch.
-        :raise SimplifiedNetworkBreakerException in any case.
+        :raise: SimplifiedNetworkBreakerException in any case.
         """
         raise SimplifiedNetworkBreakerException(first_bus_name, second_bus_name)
 

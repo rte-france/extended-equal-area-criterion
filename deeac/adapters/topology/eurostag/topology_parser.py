@@ -12,7 +12,7 @@ from deeac.domain.ports.topology import TopologyParser
 from deeac.domain.ports.dtos import Value, Unit
 from deeac.domain.ports.dtos.topology import (
     NetworkTopology, Bus, SlackBus, Branch, Line, Transformer1, Transformer8, Breaker, Load, Generator, CapacitorBank,
-    StaticVarCompensator, HVDCConverter, ENR
+    StaticVarCompensator, HVDCConverter, REN
 )
 from deeac.domain.ports.exceptions import (
     BranchParallelException, NetworkElementNameException, NominalTapException
@@ -348,50 +348,50 @@ class EurostagTopologyParser(TopologyParser):
                 # Create generator
                 generators.append(Generator(**generator_content))
 
-        # ENR
-        enr = []
-        enr_names = set()
-        enr_static_data = self.ech_file_parser.get_network_data(EchRecordType.GENERATOR)
-        for enr_data in enr_static_data:
+        # REN
+        ren = []
+        ren_names = set()
+        ren_static_data = self.ech_file_parser.get_network_data(EchRecordType.GENERATOR)
+        for ren_data in ren_static_data:
             with exception_collector:
-                if enr_data.source=="Eolien" or enr_data.source=="Photovol":
+                if ren_data.source=="Eolien" or ren_data.source=="Photovol":
                     # Name
-                    enr_name = enr_data.name
-                    if enr_name in enr_names:
-                        # Distinct enr should have different names
-                        raise NetworkElementNameException(enr_name, ENR.__name__)
-                    enr_names.add(enr_name)
-                    enr_content = {"name": enr_name}
+                    ren_name = ren_data.name
+                    if ren_name in ren_names:
+                        # Distinct REN should have different names
+                        raise NetworkElementNameException(ren_name, REN.__name__)
+                    ren_names.add(ren_name)
+                    ren_content = {"name": ren_name}
 
                     # Connected bus
-                    connected_bus = get_element(enr_data.bus_name, buses, Bus.__name__)
-                    enr_content["bus"] = connected_bus
+                    connected_bus = get_element(ren_data.bus_name, buses, Bus.__name__)
+                    ren_content["bus"] = connected_bus
 
                     # Connection state
-                    enr_content["connected"] = True if enr_data.state == State.CONNECTED else False
+                    ren_content["connected"] = True if ren_data.state == State.CONNECTED else False
 
                     # Active power (P)
-                    enr_active_power = enr_data.active_power
-                    if enr_active_power is not None:
-                        enr_active_power = Value(value=enr_active_power, unit=Unit.MW)
-                    enr_content["active_power"] = enr_active_power
-                    enr_max_active_power = enr_data.max_active_power
-                    enr_content["max_active_power"] = Value(value=enr_max_active_power, unit=Unit.MW)
+                    ren_active_power = ren_data.active_power
+                    if ren_active_power is not None:
+                        ren_active_power = Value(value=ren_active_power, unit=Unit.MW)
+                    ren_content["active_power"] = ren_active_power
+                    ren_max_active_power = ren_data.max_active_power
+                    ren_content["max_active_power"] = Value(value=ren_max_active_power, unit=Unit.MW)
                     # Reactive power (Q)
-                    enr_reactive_power = generator_data.reactive_power
-                    if enr_reactive_power is not None:
-                        enr_reactive_power = Value(value=enr_reactive_power, unit=Unit.MVAR)
-                    enr_content["reactive_power"] = enr_reactive_power
+                    ren_reactive_power = ren_data.reactive_power
+                    if ren_reactive_power is not None:
+                        ren_reactive_power = Value(value=ren_reactive_power, unit=Unit.MVAR)
+                    ren_content["reactive_power"] = ren_reactive_power
 
-                    #generator_source = Generator
-                    enr_content["source"] = generator_data.source
+                    # Source
+                    ren_content["source"] = ren_data.source
 
                     # Regulating mode
-                    enr_content["regulating"] = True \
-                        if enr_data.regulating_mode == GeneratorRegulatingMode.REGULATING else False
+                    ren_content["regulating"] = True \
+                        if ren_data.regulating_mode == GeneratorRegulatingMode.REGULATING else False
 
-                    # Create enr
-                    enr.append(ENR(**enr_content))
+                    # Create REN
+                    ren.append(REN(**ren_content))
 
                 else:
                     continue
@@ -485,7 +485,7 @@ class EurostagTopologyParser(TopologyParser):
             branches=list(branches.values()),
             loads=list(loads.values()),
             generators=generators,
-            enr = enr,
+            ren = ren,
             capacitor_banks=list(capacitor_banks.values()),
             static_var_compensators=list(svcs.values()),
             hvdc_converters=list(hvdc_converters.values())

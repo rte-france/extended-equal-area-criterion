@@ -13,36 +13,39 @@ if TYPE_CHECKING:
     from .bus import Bus
 from deeac.domain.models.constants import BASE_POWER
 
-class ENRType(Enum):
+class RENType(Enum):
     PQ = "PQ"
     PV = "PV"
 
-class ENR:
+class REN:
     """
-    ENR in a network.
+    REN in a network.
     """
 
     def __init__(
-        self, name: str, type: ENRType, bus: 'Bus', active_power: float, max_active_power: float,
+        self, name: str, type: RENType, bus: 'Bus', active_power: float, max_active_power: float,
         reactive_power: float, connected: bool = True
     ):
         """
-        Initialize an ENR.
+        Initialize a REN.
 
-        :param name: Name of the generator.
-        :param type: Type of generator (PV or PQ).
-        :param bus: Bus to which the generator is connected.
-        :param active_power: Active power of the generator. Unit: MW.
-        :param max_active_power: Maximum active power of the generator. Unit: MW.
-        :param reactive_power: Reactive power of the generator. Unit: MVAr.
-        :param connected: True if the generator is connected to the network, False otherwise.
+        :param name: Name of the REN.
+        :param type: Type of measure (PV or PQ).
+        :param bus: Bus to which the REN is connected.
+        :param active_power: Active power of the REN. Unit: MW.
+        :param max_active_power: Maximum active power of the REN. Unit: MW.
+        :param reactive_power: Reactive power of the REN. Unit: MVAr.
+        :param connected: True if the REN is connected to the network, False otherwise.
         """
         self.name = name
         self.type = type
         self._bus = bus
 
+        self.active_power = active_power
         self._active_power_pu = active_power / BASE_POWER
+        self.max_active_power = max_active_power
         self._max_active_power_pu = max_active_power / BASE_POWER
+        self.reactive_power = reactive_power
         self._reactive_power_pu = reactive_power / BASE_POWER
 
         self.connected = connected
@@ -52,10 +55,10 @@ class ENR:
 
     def __repr__(self):
         """
-        Representation of an ENR.
+        Representation of a REN.
         """
         return (
-            f"ENR: Name=[{self.name}] Type=[{self.type.name}] Bus=[{self._bus.name}] "
+            f"REN: Name=[{self.name}] Type=[{self.type.name}] Bus=[{self._bus.name}] "
             f"P=[{self.active_power}] Pmax=[{self.max_active_power}]  "
             f"Q=[{self.reactive_power}] "
             f"Connected=[{self.connected}]"
@@ -64,7 +67,7 @@ class ENR:
     @property
     def bus(self) -> 'Bus':
         """
-        Return the bus to the generator it is connected with
+        Return the bus to the REN it is connected with
 
         :return: Thus connected bus.
         """
@@ -73,9 +76,9 @@ class ENR:
     @bus.setter
     def bus(self, bus: 'Bus'):
         """
-        Change the bus connected to the generator.
+        Change the bus connected to the REN.
 
-        :param bus: The new bus to which the generator is connected.
+        :param bus: The new bus to which the REN is connected.
         """
         self._bus = bus
 
@@ -87,13 +90,6 @@ class ENR:
         return self._max_active_power_pu
 
     @property
-    def max_active_power(self) -> float:
-        """
-        Return the maximum active power in MW.
-        """
-        return self._max_active_power_pu * BASE_POWER
-
-    @property
     def active_power_pu(self) -> float:
         """
         Return the active power in per unit.
@@ -101,28 +97,10 @@ class ENR:
         return self._active_power_pu
 
     @property
-    def active_power(self) -> float:
-        """
-        Return the active power value.
-
-        :return: The active power value in MW.
-        """
-        return self._active_power_pu * BASE_POWER
-
-    @property
-    def reactive_power(self) -> float:
-        """
-        Return the reactive power value.
-
-        :return: The reactive power value in MVAr.
-        """
-        return self._reactive_power_pu * BASE_POWER
-
-    @property
     def complex_power(self) -> complex:
         """
-        Complex power of the generator.
+        Complex power of the REN.
 
-        :return: Complex power of the generator (per unit).
+        :return: Complex power of the REN (per unit).
         """
         return self._complex_power if self.connected else 0j

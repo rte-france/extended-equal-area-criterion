@@ -29,7 +29,7 @@ from .bus import Bus, BusType
 from .branch import Branch
 from .breaker import Breaker, ParallelBreakers
 from .capacitor_bank import CapacitorBank
-from .enr import ENR, ENRType
+from .ren import REN, RENType
 from .generator import Generator, GeneratorType, GeneratorSource
 from .load import FictiveLoad, Load
 from .line import Line
@@ -86,6 +86,7 @@ class Network:
 
         # Get generators to avoid expensive operations
         self._generators = [generator for bus in buses for generator in bus.generators]
+        self._ren = [generator for bus in buses for generator in bus.ren]
 
         # Results to store
         self._generator_voltage_product_amplitudes = self._compute_generator_voltage_amplitude_product()
@@ -176,6 +177,15 @@ class Network:
         :return: The list of generators.
         """
         return self._generators
+
+    @property
+    def ren(self) -> List[Generator]:
+        """
+        Get the generators in the network.
+
+        :return: The list of generators.
+        """
+        return self._ren
 
     @property
     def loads(self) -> List[Load]:
@@ -429,42 +439,42 @@ class Network:
                     )
                 )
 
-        # Create ENR
-        for enr in network_topology.enr:
+        # Create REN
+        for ren in network_topology.ren:
             with exception_collector:
                 # Get bus connected to generator
-                bus = get_element(enr.bus.name, buses, Bus.__name__)
+                bus = get_element(ren.bus.name, buses, Bus.__name__)
                 # Set type of generator
-                enr_type = ENRType.PV if enr.regulating else ENRType.PQ
+                ren_type = RENType.PV if ren.regulating else RENType.PQ
 
-                # Get load flow data (ENR Data come from generators load flow data)
+                # Get load flow data (REN Data come from generators load flow data)
                 try:
-                    load_flow_generator = load_flow.generators[enr.name]
+                    load_flow_generator = load_flow.generators[ren.name]
                     # Read load flow data for active (P) and reactive (Q) powers
-                    active_power = load_flow_generator.active_power
-                    reactive_power = load_flow_generator.reactive_power
+                    active_power = load_flow_generator.active_power.value
+                    reactive_power = load_flow_generator.reactive_power.value
                 except KeyError:
-                    # No load flow data for this ENR
-                    if enr.connected:
-                        # ENR must be found in the load flow results if connected
-                        raise LoadFlowException(enr.name, ENR.__name__)
-                    # ENR probably disconnected
+                    # No load flow data for this REN
+                    if ren.connected:
+                        # REN must be found in the load flow results if connected
+                        raise LoadFlowException(ren.name, REN.__name__)
+                    # REN probably disconnected
                     active_power = 0
                     reactive_power = 0
 
                 # Minimum and maximum powers
-                max_active_power = enr.max_active_power.value
+                max_active_power = ren.max_active_power.value
 
-                # Create ENR model and connect it to its bus
-                bus.add_enr(
-                    ENR(
-                        name=enr.name,
-                        type=enr_type,
+                # Create REN model and connect it to its bus
+                bus.add_ren(
+                    REN(
+                        name=ren.name,
+                        type=ren_type,
                         bus=bus,
                         active_power=active_power,
                         max_active_power=max_active_power,
                         reactive_power=reactive_power,
-                        connected=enr.connected
+                        connected=ren.connected
                     )
                 )
 

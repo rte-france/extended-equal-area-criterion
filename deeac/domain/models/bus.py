@@ -13,7 +13,7 @@ from typing import Set
 
 from .load import Load
 from .capacitor_bank import CapacitorBank
-from .enr import ENR
+from .ren import REN
 from .generator import Generator, GeneratorType
 from .branch import Branch
 
@@ -48,7 +48,7 @@ class Bus:
         """
         self.name = name
         self.branches = set()
-        self.enr = set()
+        self.ren = set()
         self.generators = set()
         self.loads = set()
         self.capacitor_banks = set()
@@ -65,7 +65,7 @@ class Bus:
         """
         Representation of a bus.
         """
-        enr = ")(".join([repr(gen) for gen in self.enr])
+        ren = ")(".join([repr(gen) for gen in self.ren])
         generators = ")(".join([repr(gen) for gen in self.generators])
         loads = ")(".join([repr(load) for load in self.loads])
         capacitor_banks = ")(".join([repr(bank) for bank in self.capacitor_banks])
@@ -73,7 +73,7 @@ class Bus:
         return (
             f"Bus: Name=[{self.name}] Type=[{self.type.name}] |Vb|=[{self.base_voltage}] "
             f"|V|=[{self.voltage_magnitude}] \u03C6=[{self.phase_angle}] Generators=[({generators})] "
-            f"ENR=[({enr})] Loads=[({loads})] Capacitor banks=[({capacitor_banks})] Branches=[({branches})]"
+            f"REN=[({ren})] Loads=[({loads})] Capacitor banks=[({capacitor_banks})] Branches=[({branches})]"
         )
 
     @property
@@ -154,13 +154,13 @@ class Bus:
                 type = BusType.PV
         return type
 
-    def add_enr(self, gen: ENR):
+    def add_ren(self, gen: REN):
         """
         Add an ENR to this bus.
 
         :param gen: ENR to add.
         """
-        self.enr.add(gen)
+        self.ren.add(gen)
 
     def add_generator(self, generator: Generator):
         """
@@ -237,6 +237,9 @@ class Bus:
             else:
                 branch.second_bus = self
             self.branches.add(branch)
+        for ren in bus.ren:
+            ren.bus = self
+            self.ren.add(ren)
         for generator in bus.generators:
             generator.bus = self
             self.generators.add(generator)

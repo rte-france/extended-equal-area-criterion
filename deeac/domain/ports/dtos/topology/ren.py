@@ -14,9 +14,9 @@ from .bus import Bus
 from deeac.domain.ports.dtos import Value
 
 
-class ENR(BaseModel):
+class REN(BaseModel):
     """
-    ENR in a topology.
+    REN in a topology.
     """
     name: str
     connected: bool

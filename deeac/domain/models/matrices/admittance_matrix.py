@@ -11,7 +11,7 @@ import cmath
 
 import numpy as np
 from typing import List, Dict
-from scipy.sparse import linalg, coo_matrix
+from scipy.sparse import linalg, coo_matrix, csc_matrix
 from deeac.domain.models import Bus, Transformer, Line
 from .bus_matrix import BusMatrix
 
@@ -201,7 +201,9 @@ class ReducedAdmittanceMatrix(BusMatrix):
     @staticmethod
     def _build_matrix(admittance_matrix: AdmittanceMatrix) -> np.array:
         """
-        Build the reduced admittance matrix.
+        Build the reduced admittance matrix:
+        - First step reduces admittance matrix
+        - Second step modifies reduced matrix to set Vs as unknown value and Is as known value in admittance equation
 
         This method considers that the admittance matrix Y can be split into the following 9 parts:
             [Ynn Yns Ynr]
@@ -215,6 +217,10 @@ class ReducedAdmittanceMatrix(BusMatrix):
         :param admittance_matrix: Admittance matrix used for the reduction.
         :return: A numpy array with the content of the reduced admittance matrix.
         """
+        #----------------------------
+        # Admittance matrix reduction
+        #----------------------------
+
         # Number of buses in the matrix connected to a generator or a ren
         nb_gen = len(admittance_matrix.generator_buses)
         nb_ren = len(admittance_matrix.ren_buses)
@@ -243,4 +249,21 @@ class ReducedAdmittanceMatrix(BusMatrix):
         Rsn = Ysn - Ysr @ Yrr_inv_Yrn
         Rss = Yss - Ysr @ Yrr_inv_Yrs
 
-        return np.block([[Rnn, Rns], [Rsn, Rss]])
+        #----------------------------
+        # Reduced Matrix modification
+        #----------------------------
+
+        # LU Factorisation
+        lu = linalg.splu(csc_matrix(Rss))
+
+        # Schur product
+        Rss_inv_Rsn = lu.solve(Rsn)
+        Rss_inv = lu.solve(np.eye(Rss.shape[0]))
+
+        # Blocs calculation
+        Dnn = Rnn - Rns @ Rss_inv_Rsn
+        Dns = Rns @ Rss_inv
+        Dsn = -Rss_inv_Rsn
+        Dss = Rss_inv
+
+        return np.block([[Dnn, Dns], [Dsn, Dss]])

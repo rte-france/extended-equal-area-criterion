@@ -278,9 +278,7 @@ class OMIB(ABC):
         if compute_at_initial_time:
             update_times = [time for _, time, network_state in self._update_angles if network_state == state]
         else:
-            update_times = [
-                time for _, time, network_state in self._update_angles if network_state == state if time > 0
-            ]
+            update_times = [time for _, time, network_state in self._update_angles if network_state == state if time > 0]
         for update_time in update_times:
             # Structures to store results
             constant_power_terms = [0, 0]

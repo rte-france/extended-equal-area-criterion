@@ -71,7 +71,7 @@ class CriticalClustersIdentifier(ABC):
     def candidate_clusters(self) -> Iterator[Tuple[GeneratorCluster, GeneratorCluster]]:
         """
         Get the critical and non-critical cluster candidates.
-        This function produces an iterator of cluster pairs, containing each respectively the critical and non critical
+        This function produces an iterator of cluster pairs, containing each respectively the critical and non-critical
         cluster candidates.
         The iterator will start with the largest set, and then decrease its size by one at each step.
         The element subtracted from the set at each step is the one with the lowest criterion value.
@@ -148,11 +148,11 @@ class ThresholdBasedIdentifier(CriticalClustersIdentifier):
         :param network: Network for which the identifier must be created.
         :param generators: Set of dynamic generators to consider.
         :param threshold: Threshold (between 0 and 1) used to determine the critical generators when comparing
-                          criterions.
+                          criterion.
         :param maximum_number_candidates: Maximum number of critical cluster candidates this identifier can generate.
                                           A value of 0 or lower means all possible clusters. Otherwise, the returned
                                           candidates are always the ones with the least generators, in increasing size.
-        :param min_cluster_power: Minimum aggregated active power (per unit) a cluster must deliver to be consider as a
+        :param min_cluster_power: Minimum aggregated active power (per unit) a cluster must deliver to be considered as a
                                   potential critical cluster candidate. If None, the aggregated power is not considered.
         :param threshold_decrement: Value to subtract to the threshold in case the critical machine candidates are not
                                     able to provide the minimum active power for the cluster. The subtraction may be
@@ -176,7 +176,7 @@ class ThresholdBasedIdentifier(CriticalClustersIdentifier):
             never_critical_generators=never_critical_generators
         )
 
-        # Compute criterions
+        # Compute criterion
         criterions = self._compute_criterions()
         self._identify_critical_machine_candidates(criterions)
 
@@ -250,9 +250,9 @@ class ThresholdBasedIdentifier(CriticalClustersIdentifier):
         considered as a candidate to be critical.
 
         :param: List of tuples (generator, criterion) associating each generator to its criterion.
-        This list is sorted by increasing values of the criterions.
+        This list is sorted by increasing values of the criterion.
         """
-        # Discard generators that cannot be critical and sort absolute values of the criterions
+        # Discard generators that cannot be critical and sort absolute values of the criterion
         abs_criterions = [(criterion[0], abs(criterion[1])) for criterion in criterions]
         selected_criterions = [
             criterion for criterion in sorted(abs_criterions, key=lambda crit: crit[1])
@@ -311,7 +311,7 @@ class GapBasedIdentifier(CriticalClustersIdentifier):
         :param maximum_number_candidates: Maximum number of critical cluster candidates this identifier can generate.
                                           A value of 0 or lower means all possible clusters. Otherwise, the returned
                                           candidates are always the ones with the least generators, in increasing size.
-        :param min_cluster_power: Minimum aggregated active power (per unit) a cluster must deliver to be consider as a
+        :param min_cluster_power: Minimum aggregated active power (per unit) a cluster must deliver to be considered as a
                                   potential critical cluster candidate. If None, the aggregated power is not considered.
         :param try_all_combinations: Whether to create a new candidate cluster by removing generators one by one
                                      or to try all combinations of generators
@@ -339,7 +339,8 @@ class GapBasedIdentifier(CriticalClustersIdentifier):
         """
         pass
 
-    def _identify_from_list(self, generator_variation_list, generator_list) -> List:
+    @staticmethod
+    def _identify_from_list(generator_variation_list, generator_list) -> List:
         """
 
         """
@@ -355,7 +356,7 @@ class GapBasedIdentifier(CriticalClustersIdentifier):
 
         critical_machine_candidates = list()
 
-        # If the angle where the gap is the widest gap is negative (backswing)
+        # If the angle where the gap is the widest gap is negative (back-swing)
         if generator_variation_list[ordered_index[index_largest_absolute_gap]] < 0:
             # then we keep the angle on the left side of the list
             for n in ordered_index[:index_largest_absolute_gap + 1]:
@@ -378,7 +379,7 @@ class GapBasedIdentifier(CriticalClustersIdentifier):
         generator_list = list()
         variation_list = list()
         for generator, angle in zip(self._generators, generator_variation_list):
-            
+
             # Ignore the generators specified to be never critical
             if generator.name in self._never_critical_generators:
                 continue

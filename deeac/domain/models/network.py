@@ -179,11 +179,11 @@ class Network:
         return self._generators
 
     @property
-    def ren(self) -> List[Generator]:
+    def ren(self) -> List[REN]:
         """
-        Get the generators in the network.
+        Get the REN in the network.
 
-        :return: The list of generators.
+        :return: The list of REN.
         """
         return self._ren
 
@@ -876,6 +876,7 @@ class Network:
 
             # Remove generators and loads that are not connected
             bus.generators = set(generator for generator in bus.generators if generator.connected)
+            bus.ren = set(ren for ren in bus.ren if ren.connected)
             bus.loads = set(load for load in bus.loads if load.connected)
 
         # Add fictive buses for the internal voltage of each generator

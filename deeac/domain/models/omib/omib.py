@@ -256,11 +256,19 @@ class OMIB(ABC):
         :param state: State that must be built.
         :param compute_at_initial_time: True if the state must also be built for the initial time
         """
+        # Extract REN cluster
+        simplified_network = self._network.get_state(state)
+        sorted_buses = sorted(simplified_network.buses, key=lambda bus: 0 \
+            if len(bus.generators) > 0 else 1 if len(bus.ren) > 0 else 2)
+        ren_cluster = [bus for bus in sorted_buses if bus.ren and not bus.generators]
+
         # Different cluster combinations to consider
         cluster_combinations = [
             (self._critical_cluster, self._non_critical_cluster),
             (self._critical_cluster, self._critical_cluster),
-            (self._non_critical_cluster, self._non_critical_cluster)
+            (self._non_critical_cluster, self._non_critical_cluster),
+            (self._critical_cluster, ren_cluster),
+            (self._non_critical_cluster, ren_cluster)
         ]
 
         # Compute inertia ratios
@@ -272,7 +280,7 @@ class OMIB(ABC):
             raise OMIBInertiaException(self)
 
         # Get the matrix to consider according to the state
-        admittance_matrix = self._network.get_state(state).admittance_matrix.reduction
+        admittance_matrix = simplified_network.admittance_matrix.reduction
 
         # Update times for the specified state
         if compute_at_initial_time:
@@ -281,9 +289,9 @@ class OMIB(ABC):
             update_times = [time for _, time, network_state in self._update_angles if network_state == state if time > 0]
         for update_time in update_times:
             # Structures to store results
-            constant_power_terms = [0, 0]
-            first_constant_terms = [0, 0]
-            second_constant_terms = [0, 0]
+            constant_power_terms = [0, 0, 0]
+            first_constant_terms = [0, 0, 0]
+            second_constant_terms = [0, 0, 0]
 
             # Compute conductance and susceptance products for the cluster combinations
             for combination in cluster_combinations:
@@ -296,17 +304,27 @@ class OMIB(ABC):
                     # Critical / critical or non-critical / non-critical
                     data_cluster2 = data_cluster1
                 else:
-                    # Critical / non-critical
-                    data_cluster2 = self.get_cluster_data(cluster2, update_time, state)
+                    if cluster2 != ren_cluster:
+                        # Critical / non-critical
+                        data_cluster2 = self.get_cluster_data(cluster2, update_time, state)
+                    else:
+                        # Critical / REN or non-critical / REN
+                        data_cluster2 = [(l.name, l.name, 0) for l in ren_cluster]
 
                 for ((generator1_name, generator1_bus_name, generator1_angular_deviation),
                      (generator2_name, generator2_bus_name, generator2_angular_deviation)) \
                         in product(data_cluster1, data_cluster2):
 
                     # Get product of generator voltages
-                    voltage_product = self._network.get_generator_voltage_amplitude_product(
-                        generator1_name, generator2_name
-                    )
+                    if cluster2 != ren_cluster:
+                        voltage_product = self._network.get_generator_voltage_amplitude_product(
+                            generator1_name, generator2_name
+                        )
+                    else:
+                        list_voltage1 = [abs(a.generator.internal_voltage) for a in cluster1.generators \
+                                         if a.name==generator1_name]
+                        list_voltage2 = [abs(a.voltage) for a in cluster2 if a.name == generator2_name]
+                        voltage_product = list_voltage1[0] * list_voltage2[0]
 
                     # Compute sine and cosine values based on angular deviations
                     angular_deviation_diff = generator1_angular_deviation - generator2_angular_deviation
@@ -327,19 +345,28 @@ class OMIB(ABC):
                     conductance_cosine_term = cosine_voltage_product * conductance
                     susceptance_cosine_term = cosine_voltage_product * susceptance
 
-                    if cluster1 == cluster2:
-                        # Critical / critical or non-critical / non-critical
-                        constant_power_terms[term_pos] += conductance_cosine_term
+                    if cluster2 != ren_cluster:
+                        if cluster1 == cluster2:
+                            # Critical / critical or non-critical / non-critical
+                            constant_power_terms[term_pos] += conductance_cosine_term + susceptance_sine_term
+                        else:
+                            # Critical / non-critical
+                            first_constant_terms[0] += susceptance_sine_term
+                            first_constant_terms[1] += conductance_cosine_term
+                            second_constant_terms[0] += susceptance_cosine_term
+                            second_constant_terms[1] += conductance_sine_term
                     else:
-                        # Critical / non-critical
-                        first_constant_terms[0] += susceptance_sine_term
-                        first_constant_terms[1] += conductance_cosine_term
-                        second_constant_terms[0] += susceptance_cosine_term
-                        second_constant_terms[1] += conductance_sine_term
+                        if combination == cluster_combinations[4]:
+                            constant_power_terms[2] += conductance_cosine_term + susceptance_sine_term
+                        else:
+                            first_constant_terms[2] += conductance_cosine_term + susceptance_sine_term
+                            second_constant_terms[2] += susceptance_cosine_term - conductance_sine_term
 
             # Compute first and second constants implied in maximum electric power and angle shift
-            first_constant = first_constant_terms[0] + first_constant_terms[1] * inertia_ratio_difference
-            second_constant = second_constant_terms[0] - second_constant_terms[1] * inertia_ratio_difference
+            first_constant = (first_constant_terms[0] + first_constant_terms[1] * inertia_ratio_difference
+                             + first_constant_terms[2] * non_critical_inertia_ratio)
+            second_constant = (second_constant_terms[0] - second_constant_terms[1] * inertia_ratio_difference
+                             + second_constant_terms[2] * non_critical_inertia_ratio)
 
             # Compute maximum electric power
             self._maximum_electric_powers[(state, update_time)] = np.sqrt(first_constant ** 2 + second_constant ** 2)
@@ -351,7 +378,8 @@ class OMIB(ABC):
                 raise OMIBAngleShiftException(self)
             # Compute constant electric power
             self._constant_electric_powers[(state, update_time)] = (
-                non_critical_inertia_ratio * constant_power_terms[0] - critical_inertia_ratio * constant_power_terms[1]
+                non_critical_inertia_ratio * constant_power_terms[0]
+                - critical_inertia_ratio * (constant_power_terms[1] + constant_power_terms[2])
             )
 
     @abstractmethod

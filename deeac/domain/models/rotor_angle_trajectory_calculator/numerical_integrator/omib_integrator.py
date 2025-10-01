@@ -22,38 +22,31 @@ MAXIMUM_INTEGRATION_TIME = 10
 
 
 def _swing_equation(
-    time: float, state_vector: Tuple[float, float], omib: OMIB, state: NetworkState, angle: float
-) -> Tuple[float, float]:
+    state_vector: Tuple[float, float], omib: OMIB, state: NetworkState) -> Tuple[float, float]:
     """
     Representation of the swing equation for an OMIB.
     This functions derives the rotor angle and angular speed derivatives of the machine.
 
-    :param time: Time.
     :param state_vector: Tuple representing the rotor angle value (rad) and the angular speed (rad/s).
     :param omib: OMIB to which the swing equation applies.
     :param state: Network state to consider for the OMIB trajectory.
-    :param angle: Angle (rad) for wich a time must be found. Unused, added here for compatibility.
     :return: The vector of the rotor angle and angular speed derivatives.
     """
     rotor_angle, angular_speed = state_vector
     rotor_angle_derivative = omib.network.pulse * angular_speed
     electric_power = omib.get_electric_power(rotor_angle, state)
     angular_speed_derivative = (1 / omib.inertia) * (omib.mechanical_power - electric_power)
-    return (rotor_angle_derivative, angular_speed_derivative)
+    return rotor_angle_derivative, angular_speed_derivative
 
 
 def _angle_event(
-    time: float, state_vector: Tuple[float, float], omib: OMIB, state: NetworkState, angle: float
-) -> float:
+    state_vector: Tuple[float, float],angle: float) -> float:
     """
     Event function allowing to identify the time corresponding to a specific angle.
     The solver will find an accurate value of t at which event(t, state_vector[0](t)) = angle using a root-finding
     algorithm.
 
-    :param time: Time.
     :param state_vector: Tuple representing the rotor angle value (rad) and the angular speed (rad/s).
-    :param omib: OMIB to which the swing equation applies. Unused, added her for compatibility.
-    :param state: Network state to consider for the OMIB trajectory. Unused, added her for compatibility.
     :param angle: Angle (rad) for which the time must be found.
     :return: The difference between the angle in the state vector and the target angle.
     """
@@ -78,7 +71,7 @@ class OMIBNumericalIntegrator(OMIBRotorAngleTrajectoryCalculator):
 
         :param from_point: Initial point on the trajectory.
         :param to_angle: Target angle on the trajectory.
-        :return A new trajectory point containing the time the rotor angle needs to move from point from_point to angle
+        :return: A new trajectory point containing the time the rotor angle needs to move from point from_point to angle
                 to_angle.
         :raise: OMIBInertiaException if the OMIB has no inertia.
         """

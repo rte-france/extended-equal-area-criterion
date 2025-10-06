@@ -126,7 +126,8 @@ class EurostagEventParser(EventParser):
         If the first and last BusShortCircuitEvent are separated from more than 15ms consider it "degraded mode"
         """
         if not self._events:
-            raise ValueError("No event instantiated yet")
+            #raise ValueError("No event instantiated yet")
+            return False
 
         for event in self._events:
             if isinstance(event, BranchEvent) or isinstance(event, BreakerEvent):

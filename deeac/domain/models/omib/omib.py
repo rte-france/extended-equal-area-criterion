@@ -311,56 +311,94 @@ class OMIB(ABC):
                         # Critical / REN or non-critical / REN
                         data_cluster2 = [(l.name, l.name, 0) for l in ren_cluster]
 
-                for ((generator1_name, generator1_bus_name, generator1_angular_deviation),
-                     (generator2_name, generator2_bus_name, generator2_angular_deviation)) \
-                        in product(data_cluster1, data_cluster2):
+                # for ((generator1_name, generator1_bus_name, generator1_angular_deviation),
+                #      (generator2_name, generator2_bus_name, generator2_angular_deviation)) \
+                #         in product(data_cluster1, data_cluster2):
+                #
+                #     # Get product of generator voltages
+                #     if cluster2 != ren_cluster:
+                #         voltage_product = self._network.get_generator_voltage_amplitude_product(
+                #             generator1_name, generator2_name
+                #         )
+                #     else:
+                #         list_voltage1 = [abs(a.generator.internal_voltage) for a in cluster1.generators \
+                #                          if a.name==generator1_name]
+                #         list_voltage2 = [abs(a.voltage) for a in cluster2 if a.name == generator2_name]
+                #         voltage_product = list_voltage1[0] * list_voltage2[0]
+                #
+                #     # Compute sine and cosine values based on angular deviations
+                #     angular_deviation_diff = generator1_angular_deviation - generator2_angular_deviation
+                #     sine = np.sin(angular_deviation_diff)
+                #     cosine = np.cos(angular_deviation_diff)
+                #
+                #     admittance = admittance_matrix[generator1_bus_name, generator2_bus_name]
+                #     conductance = admittance.real
+                #     susceptance = admittance.imag
+                #
+                #     # Terms implying a sine
+                #     sine_voltage_product = sine * voltage_product
+                #     conductance_sine_term = sine_voltage_product * conductance
+                #     susceptance_sine_term = sine_voltage_product * susceptance
+                #
+                #     # Terms implying a cosine
+                #     cosine_voltage_product = cosine * voltage_product
+                #     conductance_cosine_term = cosine_voltage_product * conductance
+                #     susceptance_cosine_term = cosine_voltage_product * susceptance
+                #
+                #     if cluster2 != ren_cluster:
+                #         if cluster1 == cluster2:
+                #             # Critical / critical or non-critical / non-critical
+                #             constant_power_terms[term_pos] += conductance_cosine_term + susceptance_sine_term
+                #         else:
+                #             # Critical / non-critical
+                #             first_constant_terms[0] += susceptance_sine_term
+                #             first_constant_terms[1] += conductance_cosine_term
+                #             second_constant_terms[0] += susceptance_cosine_term
+                #             second_constant_terms[1] += conductance_sine_term
+                #     else:
+                #         if combination == cluster_combinations[4]:
+                #             constant_power_terms[2] += conductance_cosine_term + susceptance_sine_term
+                #         else:
+                #             first_constant_terms[2] += conductance_cosine_term + susceptance_sine_term
+                #             second_constant_terms[2] += susceptance_cosine_term - conductance_sine_term
 
-                    # Get product of generator voltages
-                    if cluster2 != ren_cluster:
-                        voltage_product = self._network.get_generator_voltage_amplitude_product(
-                            generator1_name, generator2_name
-                        )
+                # Using arrays
+                gen1_names, gen1_buses, gen1_angles = map(np.array, zip(*data_cluster1))
+                gen2_names, gen2_buses, gen2_angles = map(np.array, zip(*data_cluster2))
+
+                # Angular differences
+                delta_theta = gen1_angles[:, None] - gen2_angles[None, :]
+                sine, cosine = np.sin(delta_theta), np.cos(delta_theta)
+
+                # Voltage product
+                if cluster2 != ren_cluster:
+                    get_volt = np.vectorize(self._network.get_generator_voltage_amplitude_product)
+                    V = get_volt(gen1_names[:, None], gen2_names[None, :])
+                else:
+                    v1 = np.array(
+                        [abs(a.generator.internal_voltage) for a in cluster1.generators if a.name in gen1_names])
+                    v2 = np.array([abs(a.voltage) for a in cluster2 if a.name in gen2_names])
+                    V = v1[:, None] * v2[None, :]
+
+                # Admittance sub-matrix
+                Y = np.array([[admittance_matrix[b1, b2] for b2 in gen2_buses] for b1 in gen1_buses])
+                G, B = Y.real, Y.imag
+
+                # Sum calculation
+                if cluster2 != ren_cluster:
+                    if cluster1 == cluster2:
+                        constant_power_terms[term_pos] += np.sum(cosine * V * G + sine * V * B)
                     else:
-                        list_voltage1 = [abs(a.generator.internal_voltage) for a in cluster1.generators \
-                                         if a.name==generator1_name]
-                        list_voltage2 = [abs(a.voltage) for a in cluster2 if a.name == generator2_name]
-                        voltage_product = list_voltage1[0] * list_voltage2[0]
-
-                    # Compute sine and cosine values based on angular deviations
-                    angular_deviation_diff = generator1_angular_deviation - generator2_angular_deviation
-                    sine = np.sin(angular_deviation_diff)
-                    cosine = np.cos(angular_deviation_diff)
-
-                    admittance = admittance_matrix[generator1_bus_name, generator2_bus_name]
-                    conductance = admittance.real
-                    susceptance = admittance.imag
-
-                    # Terms implying a sine
-                    sine_voltage_product = sine * voltage_product
-                    conductance_sine_term = sine_voltage_product * conductance
-                    susceptance_sine_term = sine_voltage_product * susceptance
-
-                    # Terms implying a cosine
-                    cosine_voltage_product = cosine * voltage_product
-                    conductance_cosine_term = cosine_voltage_product * conductance
-                    susceptance_cosine_term = cosine_voltage_product * susceptance
-
-                    if cluster2 != ren_cluster:
-                        if cluster1 == cluster2:
-                            # Critical / critical or non-critical / non-critical
-                            constant_power_terms[term_pos] += conductance_cosine_term + susceptance_sine_term
-                        else:
-                            # Critical / non-critical
-                            first_constant_terms[0] += susceptance_sine_term
-                            first_constant_terms[1] += conductance_cosine_term
-                            second_constant_terms[0] += susceptance_cosine_term
-                            second_constant_terms[1] += conductance_sine_term
+                        first_constant_terms[0] += np.sum(sine * V * B)
+                        first_constant_terms[1] += np.sum(cosine * V * G)
+                        second_constant_terms[0] += np.sum(cosine * V * B)
+                        second_constant_terms[1] += np.sum(sine * V * G)
+                else:
+                    if combination == cluster_combinations[4]:
+                        constant_power_terms[2] += np.sum(cosine * V * G + sine * V * B)
                     else:
-                        if combination == cluster_combinations[4]:
-                            constant_power_terms[2] += conductance_cosine_term + susceptance_sine_term
-                        else:
-                            first_constant_terms[2] += conductance_cosine_term + susceptance_sine_term
-                            second_constant_terms[2] += susceptance_cosine_term - conductance_sine_term
+                        first_constant_terms[2] += np.sum(cosine * V * G + sine * V * B)
+                        second_constant_terms[2] += np.sum(cosine * V * B - sine * V * G)
 
             # Compute first and second constants implied in maximum electric power and angle shift
             first_constant = (first_constant_terms[0] + first_constant_terms[1] * inertia_ratio_difference

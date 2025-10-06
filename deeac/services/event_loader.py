@@ -50,9 +50,6 @@ class EventLoader:
         parsed_events = self.event_parser.parse_events()
 
         # Create the events based on the parsed data
-        if not parsed_events:
-            return [0], [0]
-
         failure_events = []
         mitigtation_events = []
         for event_data in parsed_events:

@@ -48,15 +48,16 @@ def run_parallel_fault(
     text_result = [f"FAULT: {os.path.splitext(os.path.split(seq_file)[1])[0]}"]
     failure_events, mitigation_events = event_loader.load_events()
 
-    # Checking all protections are triggered at the same time
+    # Checking there is a fault in the input file
     fault_name = os.path.splitext(os.path.split(seq_file)[-1])[0]
     if failure_events==[0] and mitigation_events==[0]:
        text_result.append("Empty fault, cancelling execution")
        print("\n".join(text_result))
        result = {
-           "status": "Computation Error"
+           "status": "Empty fault"
        }
        return fault_name, result
+    # Checking all protections are triggered at the same time
     if event_loader.event_parser.short_circuit_delay is not None:
         text_result.append("Degraded protection case, cancelling execution")
         print("\n".join(text_result))

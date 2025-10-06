@@ -126,7 +126,6 @@ class EurostagEventParser(EventParser):
         If the first and last BusShortCircuitEvent are separated from more than 15ms consider it "degraded mode"
         """
         if not self._events:
-            #raise ValueError("No event instantiated yet")
             return False
 
         for event in self._events:
@@ -141,7 +140,7 @@ class EurostagEventParser(EventParser):
                 last_time = event.time
                 break
         else:
-            raise ValueError("No BusShortCircuitEvent event found")
+            return False
 
         # 10.109 - 10.094 = 0.015000000000000568 which is superior 0.15
         time_difference = int((last_time - first_time) * 1e3)

@@ -50,7 +50,7 @@ def run_parallel_fault(
 
     # Checking there is a fault in the input file
     fault_name = os.path.splitext(os.path.split(seq_file)[-1])[0]
-    if failure_events==[0] and mitigation_events==[0]:
+    if not failure_events or not mitigation_events:
        text_result.append("Empty fault, cancelling execution")
        print("\n".join(text_result))
        result = {

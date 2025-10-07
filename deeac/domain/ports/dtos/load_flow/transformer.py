@@ -26,7 +26,6 @@ class TransformerNodeData(BaseModel):
     Load flow results for a transformer node.
     """
     orig_node: str
-    zone: str
     types: List[str]
     parallel_ids: List[str]
     nodes: List[float]

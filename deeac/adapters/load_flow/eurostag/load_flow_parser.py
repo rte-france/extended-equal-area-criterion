@@ -265,9 +265,6 @@ class EurostagLoadFlowParser(LoadFlowParser):
                 if load_flow_data.zone in ("GE", "LO", "CA", "SV"):
                     return
 
-                if orig_zone != load_flow_data.zone:
-                    raise ValueError(f"Zone incoherence for {load_flow_data.orig_node} in load flow data")
-
                 self._transformer_nodes_data[orig_node].parallel_ids.append(load_flow_data.parallel_index)
                 self._transformer_nodes_data[orig_node].types.append(load_flow_data.type)
                 self._transformer_nodes_data[orig_node].nodes.append(load_flow_data.node)

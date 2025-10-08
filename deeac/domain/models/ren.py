@@ -49,6 +49,10 @@ class REN:
         self._reactive_power_pu = reactive_power / BASE_POWER
 
         self.connected = connected
+        if bus.voltage!=0:
+            self.current = (active_power - 1j * reactive_power) / bus.voltage.conjugate()
+        else:
+            self.current = 0
 
         # Compute properties
         self._complex_power = complex(self._active_power_pu, self._reactive_power_pu)

@@ -50,7 +50,7 @@ class REN:
 
         self.connected = connected
         if bus.voltage!=0:
-            self.current = (active_power - 1j * reactive_power) / bus.voltage.conjugate()
+            self.current = (self._active_power_pu - 1j * self._reactive_power_pu) / bus.voltage.conjugate()
         else:
             self.current = 0
 

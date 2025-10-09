@@ -16,7 +16,6 @@ from enum import Enum
 from collections import defaultdict
 from abc import ABC, abstractmethod
 from typing import Dict, Tuple, List
-from itertools import product
 
 from deeac.domain.models import GeneratorCluster, NetworkState, Network
 from deeac.domain.exceptions import OMIBInertiaException, OMIBException, OMIBAngleShiftException
@@ -51,7 +50,7 @@ class OMIB(ABC):
 
         :param network: Network for which the OMIB must be built.
         :param critical_cluster: Cluster of generators in the power system considered as critical.
-        :param non_critical_cluster: Cluster of generators in the power system considered as non critical.
+        :param non_critical_cluster: Cluster of generators in the power system considered as non-critical.
         :raise: OMIBEmptyCriticalClusterException if the critical cluster is empty.
         """
 
@@ -100,7 +99,7 @@ class OMIB(ABC):
         for state in [self._during_state, self._post_state]:
             self._build_state(state=state)
 
-        # Check if backswing instability
+        # Check if back-swing instability
         electric_power = self.get_electric_power(self.initial_rotor_angle, self._during_state)
         if self.mechanical_power < electric_power:
             self._swing_state = OMIBSwingState.BACKWARD
@@ -258,11 +257,9 @@ class OMIB(ABC):
         """
         # Extract REN cluster
         simplified_network = self._network.get_state(state)
-        sorted_buses = sorted(simplified_network.buses, key=lambda bus: 0 \
-            if len(bus.generators) > 0 else 1 if len(bus.ren) > 0 else 2)
-        ren_cluster = [bus for bus in sorted_buses if bus.ren and not bus.generators]
+        ren_cluster = {b for a in simplified_network.admittance_matrix.ren_buses for b in a.ren}
 
-        # Different cluster combinations to consider
+        # Cluster combinations
         cluster_combinations = [
             (self._critical_cluster, self._non_critical_cluster),
             (self._critical_cluster, self._critical_cluster),
@@ -271,7 +268,7 @@ class OMIB(ABC):
             (self._non_critical_cluster, ren_cluster)
         ]
 
-        # Compute inertia ratios
+        # Inertia ratios
         try:
             non_critical_inertia_ratio = self._non_critical_cluster.total_inertia / self.total_inertia
             critical_inertia_ratio = self._critical_cluster.total_inertia / self.total_inertia
@@ -279,21 +276,22 @@ class OMIB(ABC):
         except ZeroDivisionError:
             raise OMIBInertiaException(self)
 
-        # Get the matrix to consider according to the state
+        # Admittance matrix according to the state
         admittance_matrix = simplified_network.admittance_matrix.reduction
 
-        # Update times for the specified state
+        # Update times according to the state
         if compute_at_initial_time:
             update_times = [time for _, time, network_state in self._update_angles if network_state == state]
         else:
             update_times = [time for _, time, network_state in self._update_angles if network_state == state if time > 0]
+
         for update_time in update_times:
             # Structures to store results
             constant_power_terms = [0, 0, 0]
             first_constant_terms = [0, 0, 0]
             second_constant_terms = [0, 0, 0]
 
-            # Compute conductance and susceptance products for the cluster combinations
+            # Conductance and susceptance products for the cluster combinations
             for combination in cluster_combinations:
                 (cluster1, cluster2) = combination
                 term_pos = 0 if combination == cluster_combinations[1] else 1
@@ -309,7 +307,7 @@ class OMIB(ABC):
                         data_cluster2 = self.get_cluster_data(cluster2, update_time, state)
                     else:
                         # Critical / REN or non-critical / REN
-                        data_cluster2 = [(l.name, l.name, 0) for l in ren_cluster]
+                        data_cluster2 = [(l.name, l.bus.name, 0) for l in ren_cluster]
 
                 # Using arrays
                 gen1_names, gen1_buses, gen1_angles = map(np.array, zip(*data_cluster1))
@@ -319,15 +317,15 @@ class OMIB(ABC):
                 delta_theta = gen1_angles[:, None] - gen2_angles[None, :]
                 sine, cosine = np.sin(delta_theta), np.cos(delta_theta)
 
-                # Module product
+                # Module products
                 if cluster2 != ren_cluster:
                     get_volt = np.vectorize(self._network.get_generator_voltage_amplitude_product)
                     A = get_volt(gen1_names[:, None], gen2_names[None, :])
                 else:
                     v1 = np.array(
                         [abs(a.generator.internal_voltage) for a in cluster1.generators if a.name in gen1_names])
-                    #i2 = np.array([abs(a.voltage) for a in cluster2 if a.name in gen2_names])
-                    i2 = np.array([sum([abs(b.current) for b in a.ren]) for a in cluster2 if a.name in gen2_names])
+                    #i2 = np.array([abs(a.bus.voltage) for a in cluster2 if a.name in gen2_names])
+                    i2 = np.array([abs(a.current) for a in cluster2 if a.name in gen2_names])
                     A = v1[:, None] * i2[None, :]
 
                 # Admittance sub-matrix
@@ -350,21 +348,22 @@ class OMIB(ABC):
                         first_constant_terms[2] += np.sum(cosine * A * G + sine * A * B)
                         second_constant_terms[2] += np.sum(cosine * A * B - sine * A * G)
 
-            # Compute first and second constants implied in maximum electric power and angle shift
+            # First and second constants in maximum electric power and angle shift
             first_constant = (first_constant_terms[0] + first_constant_terms[1] * inertia_ratio_difference
                              + first_constant_terms[2] * non_critical_inertia_ratio)
             second_constant = (second_constant_terms[0] - second_constant_terms[1] * inertia_ratio_difference
                              + second_constant_terms[2] * non_critical_inertia_ratio)
 
-            # Compute maximum electric power
+            # Maximum electric power
             self._maximum_electric_powers[(state, update_time)] = np.sqrt(first_constant ** 2 + second_constant ** 2)
 
-            # Compute angle shift
+            # Angle shift
             try:
                 self._angle_shifts[(state, update_time)] = - math.atan2(first_constant, second_constant)
             except ZeroDivisionError:
                 raise OMIBAngleShiftException(self)
-            # Compute constant electric power
+
+            # Constant electric power
             self._constant_electric_powers[(state, update_time)] = (
                 non_critical_inertia_ratio * constant_power_terms[0]
                 - critical_inertia_ratio * (constant_power_terms[1] + constant_power_terms[2])
@@ -383,7 +382,7 @@ class OMIB(ABC):
         :param time: Time (s) at which the generator rotor angles must be considered.
         :param state: State of the network when the angular deviation must be computed.
         :return: The angular deviation (rad).
-        :raise GeneratorClusterMemberException if the generator is not in the cluster.
+        :raise: GeneratorClusterMemberException if the generator is not in the cluster.
         """
         pass
 
@@ -531,7 +530,7 @@ class OMIB(ABC):
 
         :param time: Time (s) to which the angle must correspond.
         :param state: Network state to consider for the rotor angle trajectory.
-        :return: The angle (rad) corresponding the the spicified time.
+        :return: The angle (rad) corresponding the specified time.
         """
         critical_pcoa = self._critical_cluster.get_partial_center_of_angle(time, state)
         non_critical_pcoa = self._non_critical_cluster.get_partial_center_of_angle(time, state)

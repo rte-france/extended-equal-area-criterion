@@ -260,13 +260,20 @@ class OMIB(ABC):
         ren_cluster = {b for a in simplified_network.admittance_matrix.ren_buses for b in a.ren}
 
         # Cluster combinations
-        cluster_combinations = [
-            (self._critical_cluster, self._non_critical_cluster),
-            (self._critical_cluster, self._critical_cluster),
-            (self._non_critical_cluster, self._non_critical_cluster),
-            (self._critical_cluster, ren_cluster),
-            (self._non_critical_cluster, ren_cluster)
-        ]
+        if not(ren_cluster):
+            cluster_combinations = [
+                (self._critical_cluster, self._non_critical_cluster),
+                (self._critical_cluster, self._critical_cluster),
+                (self._non_critical_cluster, self._non_critical_cluster)
+            ]
+        else:
+            cluster_combinations = [
+                (self._critical_cluster, self._non_critical_cluster),
+                (self._critical_cluster, self._critical_cluster),
+                (self._non_critical_cluster, self._non_critical_cluster),
+                (self._critical_cluster, ren_cluster),
+                (self._non_critical_cluster, ren_cluster)
+            ]
 
         # Inertia ratios
         try:

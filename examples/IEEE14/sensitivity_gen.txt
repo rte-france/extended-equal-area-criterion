@@ -1,0 +1,134 @@
+# Bus1 - 50MW
+name = GEN    7
+bus = BUS    1
+p = 50.0
+q = 0.0
+reg = N
+voltage = 69.0
+bus_voltage = BUS    1
+
+# Bus1 - 30MW
+name = GEN    7
+bus = BUS    1
+p = 30.0
+q = 40.0
+reg = N
+voltage = 69.0
+bus_voltage = BUS    1
+
+# Bus1 - 0MW
+name = GEN    7
+bus = BUS    1
+p = 0.0
+q = 50.0
+reg = N
+voltage = 69.0
+bus_voltage = BUS    1
+
+# Bus2 - 50MW
+name = GEN    7
+bus = BUS    2
+p = 50.0
+q = 0.0
+reg = N
+voltage = 69.0
+bus_voltage = BUS    2
+
+# Bus2 - 30MW
+name = GEN    7
+bus = BUS    2
+p = 30.0
+q = 40.0
+reg = N
+voltage = 69.0
+bus_voltage = BUS    2
+
+# Bus2 - 0MW
+name = GEN    7
+bus = BUS    2
+p = 0.0
+q = 50.0
+reg = N
+voltage = 69.0
+bus_voltage = BUS    2
+
+# Bus3 - 50MW
+name = GEN    7
+bus = BUS    3
+p = 50.0
+q = 0.0
+reg = N
+voltage = 69.0
+bus_voltage = BUS    3
+
+# Bus3 - 30MW
+name = GEN    7
+bus = BUS    3
+p = 30.0
+q = 40.0
+reg = N
+voltage = 69.0
+bus_voltage = BUS    3
+
+# Bus3 - 0MW
+name = GEN    7
+bus = BUS    3
+p = 0.0
+q = 50.0
+reg = N
+voltage = 69.0
+bus_voltage = BUS    3
+
+# Bus4 - 50MW
+name = GEN    7
+bus = BUS    4
+p = 50.0
+q = 0.0
+reg = N
+voltage = 69.0
+bus_voltage = BUS    4
+
+# Bus4 - 30MW
+name = GEN    7
+bus = BUS    4
+p = 30.0
+q = 40.0
+reg = N
+voltage = 69.0
+bus_voltage = BUS    4
+
+# Bus4 - 0MW
+name = GEN    7
+bus = BUS    4
+p = 0.0
+q = 50.0
+reg = N
+voltage = 69.0
+bus_voltage = BUS    4
+
+# Bus5 - 50MW
+name = GEN    7
+bus = BUS    5
+p = 50.0
+q = 0.0
+reg = N
+voltage = 69.0
+bus_voltage = BUS    5
+
+# Bus5 - 30MW
+name = GEN    7
+bus = BUS    5
+p = 30.0
+q = 40.0
+reg = N
+voltage = 69.0
+bus_voltage = BUS    5
+
+# Bus5 - 0MW
+name = GEN    7
+bus = BUS    5
+p = 0.0
+q = 50.0
+reg = N
+voltage = 69.0
+bus_voltage = BUS    5

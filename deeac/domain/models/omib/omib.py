@@ -314,7 +314,9 @@ class OMIB(ABC):
                         data_cluster2 = self.get_cluster_data(cluster2, update_time, state)
                     else:
                         # Critical / REN or non-critical / REN
-                        data_cluster2 = [(l.name, l.bus.name, 0) for l in ren_cluster]
+                        data_cluster2 = [(l.name, l.bus.name, math.atan2(l.reactive_power, l.active_power))
+                                         for l in ren_cluster]
+                        #data_cluster2 = [(l.name, l.bus.name, 0) for l in ren_cluster]
 
                 # Using arrays
                 gen1_names, gen1_buses, gen1_angles = map(np.array, zip(*data_cluster1))

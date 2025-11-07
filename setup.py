@@ -25,7 +25,8 @@ REQUIRED = [
     "networkx>=2.5.1",
     "scipy>=1.5.4",
     "matplotlib>=3.3.4",
-    "joblib>=1.4.2"
+    "joblib>=1.4.2",
+    "paramiko"
 ]
 
 EXTRA_REQUIRED = {

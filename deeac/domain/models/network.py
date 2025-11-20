@@ -10,6 +10,7 @@
 from cmath import phase, pi
 from functools import lru_cache
 from itertools import chain
+from scipy.sparse import csc_matrix
 
 import numpy as np
 import networkx as nx
@@ -751,6 +752,25 @@ class Network:
 
         self._simplified_networks[NetworkState.POST_FAULT] = self.get_simplified_network()
 
+        for network in [self._simplified_networks[NetworkState.DURING_FAULT][0],
+                        self._simplified_networks[NetworkState.POST_FAULT][0]]:
+            voltage_array = np.array([bus.voltage for bus in network.buses])
+            admittance_array = network.admittance_matrix.matrix.toarray()
+            fictive_load = [l for b in network.buses for l in b.loads if isinstance(l, FictiveLoad)]
+            if fictive_load:
+                # Calculate voltage drop
+                bus_name = max(fictive_load, key=lambda x: abs(x.admittance)).bus.name
+                bus_index = next(i for i, obj in enumerate(network.buses) if obj.name == bus_name)
+                voltage_drop = Network.voltage_drop(admittance_array, voltage_array, bus_index)
+                for obj, val in zip(network.buses, voltage_drop):
+                    obj.voltage = val
+                    obj.update_voltage(abs(val) * obj.base_voltage, obj.phase_angle)
+
+                # Disconnect REN depending on voltage value
+                for obj in network.buses:
+                    if obj.voltage_magnitude < obj.base_voltage * 0.8:
+                        obj.ren.clear()
+
     def get_disconnected_buses(self, state: NetworkState):
         """
         Get the list of the names of the buses that were discarded in a specified network state.
@@ -921,7 +941,36 @@ class Network:
                 bus.generators.clear()
         network_buses_short += fictive_buses
 
+        # Voltage drop + impact on REN
+        # simple_net = SimplifiedNetwork(buses=network_buses_short), disconnected_buses
+        # voltage_array = np.array([bus.voltage for bus in network_buses_short])
+        # admittance_array = simple_net[0].admittance_matrix.matrix.toarray()
+        # fictive_load = [s for obj in network_buses_short for s in obj.loads if isinstance(s, FictiveLoad)]
+        # if fictive_load:
+        #     bus_name = max(fictive_load, key=lambda x: abs(x.admittance)).bus.name
+        #     bus_index = next(i for i, obj in enumerate(network_buses_short) if obj.name == bus_name)
+        #     voltage_drop = Network.voltage_drop(admittance_array, voltage_array, bus_index)
+        #     for obj, val in zip(network_buses_short, voltage_drop):
+        #         obj.voltage = val
+        #         obj.update_voltage(val, obj.phase_angle)
+
         return SimplifiedNetwork(buses=network_buses_short), disconnected_buses
+
+    @staticmethod
+    def voltage_drop(admittance, voltage, bus):
+        """
+        Compute voltage drop on fault.
+
+        :param admittance: bus admittance matrix (nxn array).
+        :param voltage: bus pre-fault voltage (n array).
+        :param bus: nearest bus from fault (integer).
+        """
+        impedance = np.linalg.inv(admittance)
+        fault_current = voltage[bus] / impedance[bus, bus]
+        # Injection (all buses except fault = 0)
+        injection = np.zeros(len(voltage), dtype=complex)
+        injection[bus] = fault_current
+        return voltage - impedance @ injection
 
     def _compute_generator_voltage_amplitude_product(self):
         """

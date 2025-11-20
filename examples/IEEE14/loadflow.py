@@ -16,8 +16,8 @@ launch_load_flow = True
 launch_eeac = True
 # Parameters to create .ech files
 file_ref = "fech.ech"
-file_gen = "sensitivity_gen_-Q.txt"
-file_load = "sensitivity_load_-Q.txt"
+file_gen = "sensitivity_gen.txt"
+file_load = "sensitivity_load.txt"
 gen_ref = (
     "G  GEN    1 Y BUS    1   -9999.       0.    9999.    -100.       0.     100. "
     "V       0. BUS    1       1.       0.       0. Eolien "

@@ -79,33 +79,6 @@ reg = N
 voltage = 69.0
 bus_voltage = BUS    3
 
-# Bus4 - 50MW
-name = GEN    7
-bus = BUS    4
-p = 50.0
-q = 0.0
-reg = N
-voltage = 69.0
-bus_voltage = BUS    4
-
-# Bus4 - 30MW
-name = GEN    7
-bus = BUS    4
-p = 30.0
-q = 40.0
-reg = N
-voltage = 69.0
-bus_voltage = BUS    4
-
-# Bus4 - 0MW
-name = GEN    7
-bus = BUS    4
-p = 0.0
-q = 50.0
-reg = N
-voltage = 69.0
-bus_voltage = BUS    4
-
 # Bus5 - 50MW
 name = GEN    7
 bus = BUS    5

@@ -280,13 +280,17 @@ def main():
                 key = next(iter(data))
                 content = data[key]
                 # Check key existence
-                value1 = content["critical_cluster"]
-                if "CCT" in content:
-                    value2 = content["CCT"]
-                elif content.get("status") == "ALWAYS STABLE":
-                    value2 = "stable"
+                if "critical_cluster" in content:
+                    value1 = content["critical_cluster"]
+                    if "CCT" in content:
+                        value2 = content["CCT"]
+                    elif content.get("status") == "ALWAYS STABLE":
+                        value2 = "stable"
+                    else:
+                        value2 = "unknown"
                 else:
-                    value2 = "unknown"
+                    value1 = "None"
+                    value2 = "None"
                 results.append((line_dir.name, output_dir.name, value1, value2))
 
         # Final Sort: sort number instead of string (default behavior)

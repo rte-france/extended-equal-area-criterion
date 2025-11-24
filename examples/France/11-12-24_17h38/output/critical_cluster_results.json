@@ -1,0 +1,9 @@
+{
+  "coula71tavel": {
+    "status": "POTENTIALLY STABLE",
+    "swing_state": "FORWARD",
+    "critical_cluster": "CRUA5T 1, CRUA5T 2, CRUA5T 4, TRICAT 1, TRICAT 2, TRICAT 4",
+    "node_id": 2,
+    "CCT": 0.24301962018943213
+  }
+}

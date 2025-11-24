@@ -1,0 +1,110 @@
+Report for node 2_CCS 1:
+	Execution time: 0.004 seconds
+	Configuration:
+		Type of selector: MinCriticalClusterSelector
+	Inputs:
+		Cluster 0:
+			Critical generators: CRUA5T 1
+			Critical angle: 1.253 rad [71.804 deg]
+			Critical time: 317.024 ms
+			Maximum angle: 2.374 rad [136.004 deg]
+			Maximum time: 536.617 ms
+			OMIB stability state: POTENTIALLY STABLE
+			OMIB swing state: FORWARD
+		Cluster 1:
+			Critical generators: CRUA5T 1, CRUA5T 2
+			Critical angle: 1.179 rad [67.528 deg]
+			Critical time: 303.327 ms
+			Maximum angle: 2.304 rad [132.028 deg]
+			Maximum time: 529.184 ms
+			OMIB stability state: POTENTIALLY STABLE
+			OMIB swing state: FORWARD
+		Cluster 2:
+			Critical generators: CRUA5T 1, CRUA5T 2, CRUA5T 4
+			Critical angle: 1.09 rad [62.433 deg]
+			Critical time: 286.394 ms
+			Maximum angle: 2.247 rad [128.733 deg]
+			Maximum time: 526.65 ms
+			OMIB stability state: POTENTIALLY STABLE
+			OMIB swing state: FORWARD
+		Cluster 3:
+			Critical generators: CRUA5T 1, CRUA5T 2, CRUA5T 4, GUER8T 1
+			Critical angle: 1.095 rad [62.729 deg]
+			Critical time: 288.426 ms
+			Maximum angle: 2.29 rad [131.229 deg]
+			Maximum time: 536.371 ms
+			OMIB stability state: POTENTIALLY STABLE
+			OMIB swing state: FORWARD
+		Cluster 4:
+			Critical generators: CRUA5T 1, CRUA5T 2, CRUA5T 4, TRICAT 2
+			Critical angle: 1.025 rad [58.731 deg]
+			Critical time: 277.496 ms
+			Maximum angle: 2.18 rad [124.931 deg]
+			Maximum time: 543.556 ms
+			OMIB stability state: POTENTIALLY STABLE
+			OMIB swing state: FORWARD
+		Cluster 5:
+			Critical generators: CRUA5T 1, CRUA5T 2, CRUA5T 4, GUER8T 1, SISTEH 2
+			Critical angle: 1.13 rad [64.721 deg]
+			Critical time: 298.134 ms
+			Maximum angle: 2.264 rad [129.721 deg]
+			Maximum time: 536.828 ms
+			OMIB stability state: POTENTIALLY STABLE
+			OMIB swing state: FORWARD
+		Cluster 6:
+			Critical generators: CRUA5T 1, CRUA5T 2, CRUA5T 4, TRICAT 2, TRICAT 4
+			Critical angle: 0.953 rad [54.595 deg]
+			Critical time: 260.811 ms
+			Maximum angle: 2.145 rad [122.895 deg]
+			Maximum time: 558.329 ms
+			OMIB stability state: POTENTIALLY STABLE
+			OMIB swing state: FORWARD
+		Cluster 7:
+			Critical generators: CRUA5T 1, CRUA5T 2, CRUA5T 4, GUER8T 1, SISTEH 1, SISTEH 2
+			Critical angle: 1.162 rad [66.568 deg]
+			Critical time: 307.783 ms
+			Maximum angle: 2.27 rad [130.068 deg]
+			Maximum time: 544.796 ms
+			OMIB stability state: POTENTIALLY STABLE
+			OMIB swing state: FORWARD
+		Cluster 8:
+			Critical generators: CRUA5T 1, CRUA5T 2, CRUA5T 4, TRICAT 1, TRICAT 2, TRICAT 4
+			Critical angle: 0.886 rad [50.749 deg]
+			Critical time: 243.02 ms
+			Maximum angle: 2.053 rad [117.649 deg]
+			Maximum time: 556.614 ms
+			OMIB stability state: POTENTIALLY STABLE
+			OMIB swing state: FORWARD
+		Cluster 9:
+			Critical generators: CRUA5T 1, CRUA5T 2, CRUA5T 4, GUER8T 1, SISTEH 1, SISTEH 2, TRICAT 2
+			Critical angle: 1.084 rad [62.107 deg]
+			Critical time: 296.407 ms
+			Maximum angle: 2.192 rad [125.607 deg]
+			Maximum time: 555.108 ms
+			OMIB stability state: POTENTIALLY STABLE
+			OMIB swing state: FORWARD
+		Cluster 10:
+			Critical generators: CRUA5T 1, CRUA5T 2, CRUA5T 4, GUER8T 1, SISTEH 1, SISTEH 2, TRICAT 2, TRICAT 4
+			Critical angle: 1.002 rad [57.426 deg]
+			Critical time: 278.034 ms
+			Maximum angle: 2.161 rad [123.826 deg]
+			Maximum time: 566.891 ms
+			OMIB stability state: POTENTIALLY STABLE
+			OMIB swing state: FORWARD
+		Cluster 11:
+			Critical generators: CRUA5T 1, CRUA5T 2, CRUA5T 4, GUER8T 1, SISTEH 1, SISTEH 2, TRICAT 1, TRICAT 2, TRICAT 4
+			Critical angle: 0.928 rad [53.163 deg]
+			Critical time: 259.086 ms
+			Maximum angle: 2.099 rad [120.263 deg]
+			Maximum time: 569.416 ms
+			OMIB stability state: POTENTIALLY STABLE
+			OMIB swing state: FORWARD
+	Outputs:
+		Critical generators: CRUA5T 1, CRUA5T 2, CRUA5T 4, TRICAT 1, TRICAT 2, TRICAT 4
+		Critical angle: 0.886 rad [50.749 deg]
+		Critical time: 243.02 ms
+		Maximum angle: 2.053 rad [117.649 deg]
+		Maximum time: 556.614 ms
+		OMIB stability state: POTENTIALLY STABLE
+		OMIB swing state: FORWARD
+

@@ -15,9 +15,8 @@ create_ech_files = True
 launch_load_flow = True
 launch_eeac = True
 # Parameters to create .ech files
+json_file = "sensitivity.json"
 file_ref = "fech.ech"
-file_gen = "sensitivity_gen.txt"
-file_load = "sensitivity_load.txt"
 gen_ref = (
     "G  GEN    1 Y BUS    1   -9999.       0.    9999.    -100.       0.     100. "
     "V       0. BUS    1       1.       0.       0. Eolien "
@@ -37,66 +36,60 @@ REMOTE_ENV_FILE = "/local/home/itesloc/tests_deeac/eurostag/variables_environnem
 RUN_SCRIPT_NAME = "run_loadflow.sh"
 REMOTE_RUN_SCRIPT = os.path.join(REMOTE_TARGET_DIR, RUN_SCRIPT_NAME)
 # Parameters to launch EEAC
-csv_res = "synth.csv"
+csv_res = "synth_main.csv"
 BASE_DIR = Path("output")
 # ------------------------------------------------------------------------------------------------------------------
 
-def parse_line(line, format_field):
+def parse_fixed_width(line, format_spec):
     """
-    Create a dictionary to get data from a reference line and put them into formatted fields.
+    Split reference line in fields with fixed width.
 
-    :param line: line taken as reference to extract data (str).
-    :param format_field: fields in Eurostag format (str).
+    :param line: line to split.
+    :param format_spec: field format.
     """
     pos = 0
-    field = {}
-    for name, width in format_field:
-        field[name] = line[pos : pos + width].strip()
+    result = {}
+    for field, width in format_spec:
+        result[field] = line[pos:pos + width]
         pos += width
-    return field
-
-
-def format_line(field, format_field):
-    """
-    Edit line in correct Eurostag format.
-
-    :param field: line to format (dict).
-    :param format_field: Eurostag format structure (list).
-    """
-
-    line = ""
-    for name, width in format_field:
-        val = field.get(name)
-        if val=="Eolien":
-            line += f"{val:<{width}}"
-        else:
-            line += f"{val:>{width}}"
-    return line
-
-
-def read_param(file):
-    """
-    Read parameters from input file.
-
-    :param file: input sensitivity file (str).
-    """
-
-    result = []
-    bloc = {}
-    with open(file, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                if bloc:
-                    result.append(bloc)
-                    bloc = {}
-                continue
-            if "=" in line:
-                key, value = line.split("=", 1)
-                bloc[key.strip()] = value.strip()
-        if bloc:
-            result.append(bloc)
     return result
+
+
+def build_line(values, format_spec):
+    """
+    Built a line with fixed width from dictionary.
+
+    :param values: line to split.
+    :param format_spec: field format.
+    """
+    parts = []
+    for field, width in format_spec:
+        val = str(values.get(field, "")).ljust(width)[:width]
+        parts.append(val)
+    return "".join(parts)
+
+
+# Specific Constructions
+gen_defaults = parse_fixed_width(gen_ref, format_gen)
+load_defaults = parse_fixed_width(load_ref, format_load)
+
+
+def build_gen_line(params):
+    values = gen_defaults.copy()
+    for k, v in params.items():
+        if k in values:
+            values[k] = str(v)
+    values.setdefault("connect", "Y")
+    return build_line(values, format_gen)
+
+
+def build_load_line(params):
+    values = load_defaults.copy()
+    for k, v in params.items():
+        if k in values:
+            values[k] = str(v)
+    values.setdefault("connect", "Y")
+    return build_line(values, format_load)
 
 
 def upload_dir(sftp, local_dir, remote_dir):
@@ -185,32 +178,27 @@ def main():
     if create_ech_files:
         print("Create .ech files")
         list(map(os.remove, glob.glob(f"{LOCAL_ECH_DIR}/*")))
-        gen = read_param(file_gen)
-        load = read_param(file_load)
-        for i, params in enumerate(gen, start=1):
-            p = str(int(float(params["p"])))
-            q = str(int(float(params["q"])))
-            ech_name = (params["bus"] + "_P" + p + "_Q" + q).replace(" ", "")
-            file_study = f"{LOCAL_ECH_DIR}/{ech_name}.ech"
+        with open(json_file, "r") as f:
+            data = json.load(f)
+
+        for cfg in data["configurations"]:
+            out_path = Path(LOCAL_ECH_DIR) / f"{cfg['name']}.ech"
 
             # Read .ech file
-            with open(file_ref, "r", encoding="utf-8") as f:
-                content = f.read()
+            with open(file_ref, "r", encoding="utf8") as f:
+                content = f.read().rstrip("\n")
+            lines_to_add = []
 
-            # New lines
-            fields = parse_line(gen_ref, format_gen)
-            fields.update(params)
-            new_line1 = format_line(fields, format_gen)
-            fields = parse_line(load_ref, format_load)
-            fields.update(load[i - 1])
-            new_line2 = format_line(fields, format_load)
+            # Generators
+            for g in cfg.get("generators", []):
+                lines_to_add.append(build_gen_line(g))
 
-            # Add lines to file
-            new_content = content + f"\n{new_line1}\n{new_line2}\n"
+            # Loads
+            for l in cfg.get("loads", []):
+                lines_to_add.append(build_load_line(l))
 
-            # Write new .ech file
-            with open(file_study, "w", encoding="utf-8") as f:
-                f.write(new_content)
+            final_text = content + "\n" + "\n".join(lines_to_add) + "\n"
+            out_path.write_text(final_text, encoding="utf8")
 
     # -------------------------------------
     # Launch load flow and download results

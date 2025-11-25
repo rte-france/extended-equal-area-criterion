@@ -1,7 +1,7 @@
 {
   "configurations": [
     {
-      "name": "G_BUS1P50Q0_L_50",
+      "name": "1GB1500_1LB1500",
       "generators": [
         { "name": "GEN    4", "bus": "BUS    1", "p": "     50.0", "q": "      0.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    1", "type": "Eolien  " }
       ],
@@ -10,16 +10,7 @@
       ]
     },
     {
-      "name": "G_BUS1P0Q50_L_50",
-      "generators": [
-        { "name": "GEN    4", "bus": "BUS    1", "p": "      0.0", "q": "     50.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    1", "type": "Eolien  " }
-      ],
-      "loads": [
-        { "name": "LOAD   7", "bus": "BUS    1", "p": "      0.0", "q": "     50.0" }
-      ]
-    },
-    {
-      "name": "G_BUS1P50Q0_L_0",
+      "name": "1GB1500_1LB100",
       "generators": [
         { "name": "GEN    4", "bus": "BUS    1", "p": "     50.0", "q": "      0.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    1", "type": "Eolien  " }
       ],
@@ -28,7 +19,16 @@
       ]
     },
     {
-      "name": "G_BUS1P0Q50_L_0",
+      "name": "1GB1050_1LB1050",
+      "generators": [
+        { "name": "GEN    4", "bus": "BUS    1", "p": "      0.0", "q": "     50.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    1", "type": "Eolien  " }
+      ],
+      "loads": [
+        { "name": "LOAD   7", "bus": "BUS    1", "p": "      0.0", "q": "     50.0" }
+      ]
+    },
+    {
+      "name": "1GB1050_1LB100",
       "generators": [
         { "name": "GEN    4", "bus": "BUS    1", "p": "      0.0", "q": "     50.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    1", "type": "Eolien  " }
       ],
@@ -38,10 +38,82 @@
     },
     
     {
-      "name": "G_BUS12P50Q0_L_0",
+      "name": "1GB2500_1LB2500",
+      "generators": [
+        { "name": "GEN    4", "bus": "BUS    2", "p": "     50.0", "q": "      0.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    2", "type": "Eolien  " }
+      ],
+      "loads": [
+        { "name": "LOAD   7", "bus": "BUS    2", "p": "     50.0", "q": "      0.0" }
+      ]
+    },
+    {
+      "name": "1GB2500_1LB200",
+      "generators": [
+        { "name": "GEN    4", "bus": "BUS    2", "p": "     50.0", "q": "      0.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    2", "type": "Eolien  " }
+      ],
+      "loads": [
+        { "name": "LOAD   7", "bus": "BUS    2", "p": "      0.0", "q": "      0.0" }
+      ]
+    },
+    {
+      "name": "1GB2050_1LB2050",
+      "generators": [
+        { "name": "GEN    4", "bus": "BUS    2", "p": "      0.0", "q": "     50.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    2", "type": "Eolien  " }
+      ],
+      "loads": [
+        { "name": "LOAD   7", "bus": "BUS    2", "p": "      0.0", "q": "     50.0" }
+      ]
+    },
+    {
+      "name": "1GB2050_1LB200",
+      "generators": [
+        { "name": "GEN    4", "bus": "BUS    2", "p": "      0.0", "q": "     50.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    2", "type": "Eolien  " }
+      ],
+      "loads": [
+        { "name": "LOAD   7", "bus": "BUS    2", "p": "      0.0", "q": "      0.0" }
+      ]
+    },
+    {
+      "name": "1GB5500_1LB5500",
+      "generators": [
+        { "name": "GEN    4", "bus": "BUS    5", "p": "     50.0", "q": "      0.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    5", "type": "Eolien  " }
+      ],
+      "loads": [
+        { "name": "LOAD   7", "bus": "BUS    5", "p": "     50.0", "q": "      0.0" }
+      ]
+    },
+    {
+      "name": "1GB5500_1LB500",
+      "generators": [
+        { "name": "GEN    4", "bus": "BUS    5", "p": "     50.0", "q": "      0.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    5", "type": "Eolien  " }
+      ],
+      "loads": [
+        { "name": "LOAD   7", "bus": "BUS    5", "p": "      0.0", "q": "      0.0" }
+      ]
+    },
+    {
+      "name": "1GB5050_1LB5050",
+      "generators": [
+        { "name": "GEN    4", "bus": "BUS    5", "p": "      0.0", "q": "     50.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    5", "type": "Eolien  " }
+      ],
+      "loads": [
+        { "name": "LOAD   7", "bus": "BUS    5", "p": "      0.0", "q": "     50.0" }
+      ]
+    },
+    {
+      "name": "1GB5050_1LB500",
+      "generators": [
+        { "name": "GEN    4", "bus": "BUS    5", "p": "      0.0", "q": "     50.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    5", "type": "Eolien  " }
+      ],
+      "loads": [
+        { "name": "LOAD   7", "bus": "BUS    5", "p": "      0.0", "q": "      0.0" }
+      ]
+    },    
+    {
+      "name": "2GB12500_2LB1200",
       "generators": [
         { "name": "GEN    4", "bus": "BUS    1", "p": "     50.0", "q": "      0.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    1", "type": "Eolien  " },
-        { "name": "GEN    5", "bus": "BUS    2", "p": "     50.0", "q": "      0.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    2", "type": "Eolien  " }
+        { "name": "GEN    7", "bus": "BUS    2", "p": "     50.0", "q": "      0.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    2", "type": "Eolien  " }
       ],
       "loads": [
         { "name": "LOAD   7", "bus": "BUS    1", "p": "      0.0", "q": "      0.0" },
@@ -49,10 +121,10 @@
       ]
     },
     {
-      "name": "G_BUS12P0Q50_L_0",
+      "name": "2GB12050_2LB1200",
       "generators": [
         { "name": "GEN    4", "bus": "BUS    1", "p": "      0.0", "q": "     50.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    1", "type": "Eolien  " },
-        { "name": "GEN    5", "bus": "BUS    2", "p": "      0.0", "q": "     50.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    2", "type": "Eolien  " }
+        { "name": "GEN    7", "bus": "BUS    2", "p": "      0.0", "q": "     50.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    2", "type": "Eolien  " }
       ],
       "loads": [
         { "name": "LOAD   7", "bus": "BUS    1", "p": "      0.0", "q": "      0.0" },
@@ -60,14 +132,25 @@
       ]
     },
     {
-      "name": "G_BUS23P0Q50_L_0",
+      "name": "2GB13500_2LB1300",
       "generators": [
-        { "name": "GEN    4", "bus": "BUS    3", "p": "      0.0", "q": "     50.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    3", "type": "Eolien  " },
-        { "name": "GEN    5", "bus": "BUS    2", "p": "      0.0", "q": "     50.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    2", "type": "Eolien  " }
+        { "name": "GEN    4", "bus": "BUS    1", "p": "     50.0", "q": "      0.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    1", "type": "Eolien  " },
+        { "name": "GEN    7", "bus": "BUS    3", "p": "     50.0", "q": "      0.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    3", "type": "Eolien  " }
       ],
       "loads": [
-        { "name": "LOAD   7", "bus": "BUS    3", "p": "      0.0", "q": "      0.0" },
-        { "name": "LOAD   8", "bus": "BUS    2", "p": "      0.0", "q": "      0.0" }
+        { "name": "LOAD   7", "bus": "BUS    1", "p": "      0.0", "q": "      0.0" },
+        { "name": "LOAD   8", "bus": "BUS    3", "p": "      0.0", "q": "      0.0" }
+      ]
+    },
+    {
+      "name": "2GB13050_2LB1300",
+      "generators": [
+        { "name": "GEN    4", "bus": "BUS    1", "p": "      0.0", "q": "     50.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    1", "type": "Eolien  " },
+        { "name": "GEN    7", "bus": "BUS    3", "p": "      0.0", "q": "     50.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    3", "type": "Eolien  " }
+      ],
+      "loads": [
+        { "name": "LOAD   7", "bus": "BUS    1", "p": "      0.0", "q": "      0.0" },
+        { "name": "LOAD   8", "bus": "BUS    3", "p": "      0.0", "q": "      0.0" }
       ]
     }
   ]

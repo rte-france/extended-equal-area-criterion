@@ -36,7 +36,7 @@ REMOTE_ENV_FILE = "/local/home/itesloc/tests_deeac/eurostag/variables_environnem
 RUN_SCRIPT_NAME = "run_loadflow.sh"
 REMOTE_RUN_SCRIPT = os.path.join(REMOTE_TARGET_DIR, RUN_SCRIPT_NAME)
 # Parameters to launch EEAC
-csv_res = "synth_main.csv"
+csv_res = "synth.csv"
 BASE_DIR = Path("output")
 # ------------------------------------------------------------------------------------------------------------------
 

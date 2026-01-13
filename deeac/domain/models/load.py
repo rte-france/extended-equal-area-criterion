@@ -54,7 +54,7 @@ class Load:
         """
         Compute the admittance of this load.
         """
-        if self.bus.voltage == 0:
+        if self.bus.voltage_magnitude_pu == 0:
             # Bus not connected to the network.
             self._admittance = 0j
         else:

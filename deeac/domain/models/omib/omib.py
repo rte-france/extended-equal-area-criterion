@@ -260,7 +260,7 @@ class OMIB(ABC):
         ren_cluster = {b for a in simplified_network.admittance_matrix.ren_buses for b in a.ren}
 
         # Cluster combinations
-        if not(ren_cluster):
+        if not ren_cluster:
             cluster_combinations = [
                 (self._critical_cluster, self._non_critical_cluster),
                 (self._critical_cluster, self._critical_cluster),
@@ -314,9 +314,8 @@ class OMIB(ABC):
                         data_cluster2 = self.get_cluster_data(cluster2, update_time, state)
                     else:
                         # Critical / REN or non-critical / REN
-                        data_cluster2 = [(l.name, l.bus.name, math.atan2(l.reactive_power, l.active_power))
+                        data_cluster2 = [(l.name, l.bus.name, 0)
                                          for l in ren_cluster]
-                        #data_cluster2 = [(l.name, l.bus.name, 0) for l in ren_cluster]
 
                 # Using arrays
                 gen1_names, gen1_buses, gen1_angles = map(np.array, zip(*data_cluster1))
@@ -333,7 +332,6 @@ class OMIB(ABC):
                 else:
                     v1 = np.array(
                         [abs(a.generator.internal_voltage) for a in cluster1.generators if a.name in gen1_names])
-                    #i2 = np.array([abs(a.bus.voltage) for a in cluster2 if a.name in gen2_names])
                     i2 = np.array([abs(a.current) for a in cluster2 if a.name in gen2_names])
                     A = v1[:, None] * i2[None, :]
 

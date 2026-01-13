@@ -11,7 +11,7 @@
 
 
 
-                                                  DATE: 23/07/24 TIME: 10:58:02
+                                                  DATE: 09/12/25 TIME: 09:14:29
 
 
 
@@ -33,13 +33,13 @@
 
           OPTION(S) CHOISIE(S)  : 
 
-               LISTING DES DONNEES                         ( )
+               LISTING DES DONNEES                         (*)
                ARRET APRES TRAITEMENT DES DONNEES          ( )
                CLASSEMENT OPTIMAL DES NOEUDS               (*)
                LISTING DES RESULTATS                       (*)
                SAUVETAGE DU FICHIER RESUL.                 (*)
 
-               NB MAX D'ITERATIONS                                    99
+               NB MAX D'ITERATIONS                                    20
                ITERATION OU DEBUTENT LES SOUS-ITER                   ITER   4
                TOLER. SUR MISMATCHES                                    0.00500 P.U.
                DEBUT PV ---> PQ AUTORISE                             ITER   2
@@ -50,17 +50,17 @@
 
 
 
-               NOM DU FICHIER D'ENTREE        fech.ech
-               NOM DU FICHIER DE SORTIE       fech.sav
+               NOM DU FICHIER D'ENTREE        fech.ech                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        
+               NOM DU FICHIER DE SORTIE       fech.sav                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        
 
 
 
 
-                                                                                
-  FICHIER EUROSTAG GENERE PAR GSR                                               
-  DATE ET HEURE DE LA GENERATION : 27/04/23 11:36                               
-  DATE ET HEURE DE LA SITUATION ETUDIEE : 27/04/2023 09:41                      
-                                                                                
+
+  WAR-194.0906: TENSION AU NOEUD SPECIAL BUS_CS71 FORCEE A .9906666 P.U. 
+                LA VALEUR VENANT DU PLAN DE TENSION INITIAL ETAIT 1.000000 !
+
+
 
 
 
@@ -215,7 +215,7 @@
  |04 BUS_ASF2| 22.75   8.61|  980.00  -282.73|    37.00     16.00|             |                |            |                |     |
  |GE GEN_AT 2|             |  980.00  -282.73|                   |             |                |            |                |     |
  |LO AUX_AT 2|             |                 |    37.00     16.00|             |                |            |                |     |
- |           |             |    0.01    -0.00|                   |04 BUS_BS71 2|   943.0  -298.7|  9.2   85.0|  989.2 2280  43|     |
+ |           |             |    0.01     0.00|                   |04 BUS_BS71 2|   943.0  -298.7|  9.2   85.0|  989.2 2280  43|     |
  |04 BUS_BS71| 23.51   1.92|    0.00     0.00|     0.00      0.00|             |                |            |                |     |
  |           |             |   -0.01    -0.01|                   |04 BUS_ASF2 2|  -933.8   383.8|  9.2   85.0| 1009.6 2280  44|     |
  |           |             |                 |                   |04 BUS_CS71 1|   467.1  -192.0|  1.2    0.7|  505.1 2368  21|     |
@@ -229,7 +229,7 @@
  |04 BUS_DSF2| 24.22   2.92|  500.95   137.24|    37.00     15.00|             |                |            |                |     |
  |GE GEN_DT 2|             |  500.95   137.24|                   |             |                |            |                |     |
  |LO AUX_DT 2|             |                 |    37.00     15.00|             |                |            |                |     |
- |           |             |   -0.00    -0.00|                   |04 BUS_CS71 2|   463.9   122.2|  2.0  -12.7|  479.8 2280  21|     |
+ |           |             |    0.00     0.00|                   |04 BUS_CS71 2|   463.9   122.2|  2.0  -12.7|  479.8 2280  21|     |
  ------------------------------------------------------------------------------------------------------------------------------------
 
 
@@ -260,9 +260,9 @@
  |     |                                           |                                          |
  |     |PRODUCTION   CHARGE    PERTES     EXPORT   |PRODUCTION   CHARGE    PERTES     EXPORT  |
  |--------------------------------------------------------------------------------------------|
- |  04 |  1480.56    1467.00      13.56      -0.00 |  -145.39    -219.00      73.61      -0.01|
+ |  04 |  1480.56    1467.00      13.56       0.00 |  -145.39    -219.00      73.61      -0.01|
  |--------------------------------------------------------------------------------------------|
- |TOTAL|  1480.56    1467.00      13.56      -0.00 |  -145.39    -219.00      73.61      -0.01|
+ |TOTAL|  1480.56    1467.00      13.56       0.00 |  -145.39    -219.00      73.61      -0.01|
  |--------------------------------------------------------------------------------------------|
  |     |  MVAR GENERES PAR CONDENSATEUR(S)     0.00     MW DE PERTE       0.00                |
  ----------------------------------------------------------------------------------------------

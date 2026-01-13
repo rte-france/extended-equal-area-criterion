@@ -41,11 +41,8 @@ class REN:
         self.type = type
         self._bus = bus
 
-        self.active_power = active_power
         self._active_power_pu = active_power / BASE_POWER
-        self.max_active_power = max_active_power
         self._max_active_power_pu = max_active_power / BASE_POWER
-        self.reactive_power = reactive_power
         self._reactive_power_pu = reactive_power / BASE_POWER
 
         self.connected = connected
@@ -94,11 +91,36 @@ class REN:
         return self._max_active_power_pu
 
     @property
+    def max_active_power(self) -> float:
+        """
+        Return the maximum active power in MW.
+        """
+        return self._max_active_power_pu * BASE_POWER
+
+    @property
     def active_power_pu(self) -> float:
         """
         Return the active power in per unit.
         """
         return self._active_power_pu
+
+    @property
+    def active_power(self) -> float:
+        """
+        Return the active power value.
+
+        :return: The active power value in MW.
+        """
+        return self._active_power_pu * BASE_POWER
+
+    @property
+    def reactive_power(self) -> float:
+        """
+        Return the reactive power value.
+
+        :return: The reactive power value in MVAr.
+        """
+        return self._reactive_power_pu * BASE_POWER
 
     @property
     def complex_power(self) -> complex:

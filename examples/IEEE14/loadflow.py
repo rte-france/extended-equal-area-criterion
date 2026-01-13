@@ -15,7 +15,7 @@ create_ech_files = True
 launch_load_flow = True
 launch_eeac = True
 # Parameters to create .ech files
-json_file = "sensitivity.json"
+json_file = "sensitivity_Total_50.json"
 file_ref = "fech.ech"
 gen_ref = (
     "G  GEN    1 Y BUS    1   -9999.       0.    9999.    -100.       0.     100. "

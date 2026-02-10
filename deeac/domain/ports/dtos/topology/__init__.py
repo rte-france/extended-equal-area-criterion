@@ -12,6 +12,7 @@ from .breaker import Breaker  # noqa
 from .bus import Bus, SlackBus  # noqa
 from .capacitor_bank import CapacitorBank  # noqa
 from .generator import Generator  # noqa
+from .ren import REN
 from .high_voltage_direct_current import HVDCConverter  # noqa
 from .line import Line  # noqa
 from .load import Load  # noqa

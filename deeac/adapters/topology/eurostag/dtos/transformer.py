@@ -46,7 +46,7 @@ class Type1Transformer(Transformer):
     """
     Data of a transformer with fixed real ratio (type 1).
     """
-    resistance: float
+    resistance: NonNegativeFloat
     reactance: float
     rated_apparent_power: float
     transformation_ratio: PositiveFloat

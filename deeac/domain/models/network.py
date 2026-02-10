@@ -30,6 +30,7 @@ from .branch import Branch
 from .breaker import Breaker, ParallelBreakers
 from .capacitor_bank import CapacitorBank
 from .generator import Generator, GeneratorType, GeneratorSource
+from .ren import REN
 from .load import FictiveLoad, Load
 from .line import Line
 from .transformer import Transformer
@@ -85,6 +86,7 @@ class Network:
 
         # Get generators to avoid expensive operations
         self._generators = [generator for bus in buses for generator in bus.generators]
+        self._ren = [ren for bus in buses for ren in bus.ren]
 
         # Results to store
         self._generator_voltage_product_amplitudes = self._compute_generator_voltage_amplitude_product()
@@ -177,6 +179,15 @@ class Network:
         return self._generators
 
     @property
+    def ren(self) -> List[REN]:
+        """
+        Get the REN in the network.
+
+        :return: The list of REN.
+        """
+        return self._ren
+
+    @property
     def loads(self) -> List[Load]:
         """
         Get the loads in the network.
@@ -192,7 +203,7 @@ class Network:
         that the fictive loads that are added to model a fault are
         not returned.
 
-        :return: The list of non fictive loads.
+        :return: The list of non-fictive loads.
         """
         return [load for bus in self.buses for load in bus.loads
                 if not isinstance(load, FictiveLoad)]
@@ -227,7 +238,7 @@ class Network:
         Note that this bus may have been coupled to another one in the network.
 
         :param bus_name: Name of the bus to identify.
-        :raise ElementNotFoundException if no bus is associated to this name in the topology.
+        :raise: ElementNotFoundException if no bus is associated to this name in the topology.
         """
         try:
             return next(bus for bus in self.buses if bus.name == bus_name or bus_name in bus.coupled_bus_names)
@@ -242,7 +253,7 @@ class Network:
         :param first_bus_name: Name of the first bus connected to the branch.
         :param second_bus_name: Name of the second bus connected to the branch.
         :return: The branch in between the specified buses.
-        :raise ElementNotFoundException if the branch cannot be identified.
+        :raise: ElementNotFoundException if the branch cannot be identified.
         """
         try:
             # Iterator of buses based on their names
@@ -274,8 +285,8 @@ class Network:
 
         :param first_bus_name: Name of the first bus connected to the branch.
         :param second_bus_name: Name of the second bus connected to the branch.
-        :return The parallel breakers between the buses.
-        :raise ElementNotFoundException if the breaker cannot be identified.
+        :return: The parallel breakers between the buses.
+        :raise: ElementNotFoundException if the breaker cannot be identified.
         """
         try:
             # Iterator of breakers based on the bus names
@@ -293,7 +304,7 @@ class Network:
         Get the generator with the specified name.
 
         :param generator_name: Name of the generator.
-        :return: The generator with the specifief name.
+        :return: The generator with the specified name.
         :raise: ElementNotFoundException if the generator is not found.
         """
         try:
@@ -311,8 +322,8 @@ class Network:
         :param parallel_id: Parallel ID identifying the breaker.
         :param closed: True if the breaker must be closed, False otherwise.
 
-        :raise ElementNotFoundException if no breaker can be found between the two buses in the network.
-        :raise ParallelException if no element is at the specified parallel ID on the branch.
+        :raise: ElementNotFoundException if no breaker can be found between the two buses in the network.
+        :raise: ParallelException if no element is at the specified parallel ID on the branch.
         """
         # Get breaker
         parallel_breakers = self.get_parallel_breakers(first_bus_name, second_bus_name)
@@ -432,7 +443,37 @@ class Network:
                         connected=generator.connected
                     )
                 )
+        # Create REN
+        for ren in network_topology.ren:
+            with exception_collector:
+                # Get bus connected to generator
+                bus = get_element(ren.bus.name, buses, Bus.__name__)
 
+                # Get load flow data (REN Data come from generators load flow data)
+                try:
+                    load_flow_ren = load_flow.generators[ren.name]
+                    # Read load flow data for active (P) and reactive (Q) powers
+                    active_power = -1 * load_flow_ren.active_power.value
+                    reactive_power = -1 * load_flow_ren.reactive_power.value
+                except KeyError:
+                    # No load flow data for this REN
+                    if ren.connected:
+                        # REN must be found in the load flow results if connected
+                        raise LoadFlowException(ren.name, REN.__name__)
+                    # REN probably disconnected
+                    active_power = 0
+                    reactive_power = 0
+
+                # Create REN model and connect it to its bus
+                bus.add_ren(
+                    REN(
+                        name=ren.name,
+                        bus=bus,
+                        active_power=active_power,
+                        reactive_power=reactive_power,
+                        connected=ren.connected
+                    )
+                )
         # Create loads
         for load in network_topology.loads:
             with exception_collector:
@@ -477,7 +518,7 @@ class Network:
                     )
                 )
 
-        # Create static var compensators (modelled as capacitor banks)
+        # Create static var compensator (modelled as capacitor banks)
         for svc in network_topology.static_var_compensators:
             with exception_collector:
                 # Get reactive power from load flow results
@@ -666,7 +707,7 @@ class Network:
             breakers=breakers,
         )
 
-    def provide_events(self, failure_events: List['Event'], mitigation_events: List['Event']) -> bool:
+    def provide_events(self, failure_events: List['Event'], mitigation_events: List['Event']) :
         """
         Provide the failure and mitigation events to allow the computation of the simplified networks in specific
         states. Providing new events will recompute the network states, ignoring events that may already have been
@@ -706,6 +747,23 @@ class Network:
 
         self._simplified_networks[NetworkState.POST_FAULT] = self.get_simplified_network()
 
+        for network in [self._simplified_networks[NetworkState.DURING_FAULT][0],
+                        self._simplified_networks[NetworkState.POST_FAULT][0]]:
+            voltage_array = np.array([bus.voltage for bus in network.buses])
+            admittance_array = network.admittance_matrix.matrix.toarray()
+            fictive_load = [l for b in network.buses for l in b.loads if isinstance(l, FictiveLoad)]
+            if fictive_load:
+                # Calculate voltage drop
+                bus_name = max(fictive_load, key=lambda x: abs(x.admittance)).bus.name
+                bus_index = next(i for i, obj in enumerate(network.buses) if obj.name == bus_name)
+                voltage_drop = Network.voltage_drop(admittance_array, voltage_array, bus_index)
+                for obj, val in zip(network.buses, voltage_drop):
+                    if abs(val) < abs(obj.voltage) * 0.85:
+                        obj.ren.clear()
+
+                # Re-calculate admittance matrix based on REN disconnection
+                network._admittance_matrix = AdmittanceMatrix(network.buses)
+
     def get_disconnected_buses(self, state: NetworkState):
         """
         Get the list of the names of the buses that were discarded in a specified network state.
@@ -725,7 +783,7 @@ class Network:
 
         :param state: The state for which the simplified network is requested.
         :return: The simplified network in the expected state.
-        :raise NetworkStateException if a state requires events that were not provided previously.
+        :raise: NetworkStateException if a state requires events that were not provided previously.
         """
         if self._simplified_networks[state] is None:
             # Events were not provided
@@ -743,10 +801,9 @@ class Network:
         This function also returns the list of the names of the buses that were discarded during the graph analysis to
         create this simplified version of the network.
 
-        :param state: The state for which the simplified network is requested.
         :return: The simplified network in the expected state and the list of the names of the buses that were
                  discarded.
-        :raise NetworkEventException if a state requires events that were not provided previously.
+        :raise: NetworkEventException if a state requires events that were not provided previously.
         """
         # Copy network
         network = self.duplicate()
@@ -832,6 +889,7 @@ class Network:
 
             # Remove generators and loads that are not connected
             bus.generators = set(generator for generator in bus.generators if generator.connected)
+            bus.ren = set(ren for ren in bus.ren if ren.connected)
             bus.loads = set(load for load in bus.loads if load.connected)
 
         # Add fictive buses for the internal voltage of each generator
@@ -877,6 +935,22 @@ class Network:
         network_buses_short += fictive_buses
 
         return SimplifiedNetwork(buses=network_buses_short), disconnected_buses
+
+    @staticmethod
+    def voltage_drop(admittance, voltage, bus):
+        """
+        Compute voltage drop on fault.
+
+        :param admittance: bus admittance matrix (nxn array).
+        :param voltage: bus pre-fault voltage (n array).
+        :param bus: nearest bus from fault (integer).
+        """
+        impedance = np.linalg.inv(admittance)
+        fault_current = voltage[bus] / impedance[bus, bus]
+        # Injection (all buses except fault = 0)
+        injection = np.zeros(len(voltage), dtype=complex)
+        injection[bus] = fault_current
+        return voltage - impedance @ injection
 
     def _compute_generator_voltage_amplitude_product(self):
         """
@@ -1025,7 +1099,7 @@ class Network:
         """
         Generate a graph representation of the network around a bus.
         This drawing is performed for a specific state.
-        The representation is outputed in a file. If the path exists, it is replaced.
+        The representation is written in a file. If the path exists, it is replaced.
 
         :param output_file: Path to an output file.
         :param state: Network state to consider.
@@ -1075,7 +1149,7 @@ class Network:
         Generate a graph representation of the network around the closest buses to the faults.
         This drawing is performed for the during fault state, starting from the pre-fault state, and highlighting
         elements discarded during the fault.
-        The representation is outputed in a file. If the path exists, it is replaced.
+        The representation is written in a file. If the path exists, it is replaced.
 
         :param output_file: Path to an output file.
         :param diameter: Diameter (i.e. number of buses) to consider around the closest buses to the faults. It allows
@@ -1182,7 +1256,7 @@ class SimplifiedNetwork:
 
         :param first_bus_name: Name of the first bus connected to the branch.
         :param second_bus_name: Name of the second bus connected to the branch.
-        :raise SimplifiedNetworkBreakerException in any case.
+        :raise: SimplifiedNetworkBreakerException in any case.
         """
         raise SimplifiedNetworkBreakerException(first_bus_name, second_bus_name)
 

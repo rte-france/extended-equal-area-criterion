@@ -13,6 +13,7 @@ from typing import List
 from .bus import Bus, SlackBus
 from .branch import Branch
 from .generator import Generator
+from .ren import REN
 from .load import Load
 from .capacitor_bank import CapacitorBank
 from .static_var_compensator import StaticVarCompensator
@@ -30,6 +31,7 @@ class NetworkTopology(BaseModel):
     branches: List[Branch]
     loads: List[Load]
     generators: List[Generator]
+    ren: List[REN]
     capacitor_banks: List[CapacitorBank]
     static_var_compensators: List[StaticVarCompensator]
     hvdc_converters: List[HVDCConverter]

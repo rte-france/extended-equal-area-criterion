@@ -67,8 +67,14 @@ class AdmittanceMatrix(BusMatrix):
 
         for i, bus in enumerate(buses):
             loads = bus.loads
+            rens = bus.ren
             capacitor_banks = bus.capacitor_banks
             bus_name = bus.name
+
+            for ren in rens:
+                rows.append(i)
+                cols.append(i)
+                data.append(ren.admittance)
 
             for load in loads:
                 rows.append(i)

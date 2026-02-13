@@ -1,0 +1,200 @@
+{
+  "configurations": [
+    {
+      "name": "Main"
+    },
+    {
+      "name": "LA_P200Q0",
+      "loads": [
+        { "name": "LOAD   1", "bus": "BUS_ASF2", "p": "    200.0", "q": "      0.0" }
+      ]
+    },
+    {
+      "name": "LA_P0Q200",
+      "loads": [
+        { "name": "LOAD   1", "bus": "BUS_ASF2", "p": "      0.0", "q": "    200.0" }
+      ]
+    },
+    {
+      "name": "LB_P200Q0",
+      "loads": [
+        { "name": "LOAD   1", "bus": "BUS_BS71", "p": "    200.0", "q": "      0.0" }
+      ]
+    },
+    {
+      "name": "LB_P0Q200",
+      "loads": [
+        { "name": "LOAD   1", "bus": "BUS_BS71", "p": "      0.0", "q": "    200.0" }
+      ]
+    },
+    {
+      "name": "LC_P200Q0",
+      "loads": [
+        { "name": "LOAD   1", "bus": "BUS_CS71", "p": "    200.0", "q": "      0.0" }
+      ]
+    },
+    {
+      "name": "LC_P0Q200",
+      "loads": [
+        { "name": "LOAD   1", "bus": "BUS_CS71", "p": "      0.0", "q": "    200.0" }
+      ]
+    },
+    {
+      "name": "LD_P200Q0",
+      "loads": [
+        { "name": "LOAD   1", "bus": "BUS_DSF2", "p": "    200.0", "q": "      0.0" }
+      ]
+    },
+    {
+      "name": "LD_P0Q200",
+      "loads": [
+        { "name": "LOAD   1", "bus": "BUS_DSF2", "p": "      0.0", "q": "    200.0" }
+      ]
+    },
+    {
+      "name": "LA_P-200Q0",
+      "loads": [
+        { "name": "LOAD   1", "bus": "BUS_ASF2", "p": "   -200.0", "q": "      0.0" }
+      ]
+    },
+    {
+      "name": "LA_P0Q-200",
+      "loads": [
+        { "name": "LOAD   1", "bus": "BUS_ASF2", "p": "      0.0", "q": "   -200.0" }
+      ]
+    },
+    {
+      "name": "LB_P-200Q0",
+      "loads": [
+        { "name": "LOAD   1", "bus": "BUS_BS71", "p": "   -200.0", "q": "      0.0" }
+      ]
+    },
+    {
+      "name": "LB_P0Q-200",
+      "loads": [
+        { "name": "LOAD   1", "bus": "BUS_BS71", "p": "      0.0", "q": "   -200.0" }
+      ]
+    },
+    {
+      "name": "LC_P-200Q0",
+      "loads": [
+        { "name": "LOAD   1", "bus": "BUS_CS71", "p": "   -200.0", "q": "      0.0" }
+      ]
+    },
+    {
+      "name": "LC_P0Q-200",
+      "loads": [
+        { "name": "LOAD   1", "bus": "BUS_CS71", "p": "      0.0", "q": "   -200.0" }
+      ]
+    },
+    {
+      "name": "LD_P-200Q0",
+      "loads": [
+        { "name": "LOAD   1", "bus": "BUS_DSF2", "p": "   -200.0", "q": "      0.0" }
+      ]
+    },
+    {
+      "name": "LD_P0Q-200",
+      "loads": [
+        { "name": "LOAD   1", "bus": "BUS_DSF2", "p": "      0.0", "q": "   -200.0" }
+      ]
+    },
+    {
+      "name": "RA_P200Q0",
+      "generators": [
+        { "name": "GEN    1", "bus": "BUS_ASF2", "p": "    200.0", "q": "      0.0", "reg": " N", "voltage": "     24.0", "bus_voltage": "BUS_BS71", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "RA_P0Q200",
+      "generators": [
+        { "name": "GEN    1", "bus": "BUS_ASF2", "p": "      0.0", "q": "    200.0", "reg": " N", "voltage": "     24.0", "bus_voltage": "BUS_BS71", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "RB_P200Q0",
+      "generators": [
+        { "name": "GEN    1", "bus": "BUS_BS71", "p": "    200.0", "q": "      0.0", "reg": " N", "voltage": "     24.0", "bus_voltage": "BUS_BS71", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "RB_P0Q200",
+      "generators": [
+        { "name": "GEN    1", "bus": "BUS_BS71", "p": "      0.0", "q": "    200.0", "reg": " N", "voltage": "     24.0", "bus_voltage": "BUS_BS71", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "RC_P200Q0",
+      "generators": [
+        { "name": "GEN    1", "bus": "BUS_CS71", "p": "    200.0", "q": "      0.0", "reg": " N", "voltage": "     24.0", "bus_voltage": "BUS_BS71", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "RC_P0Q200",
+      "generators": [
+        { "name": "GEN    1", "bus": "BUS_CS71", "p": "      0.0", "q": "    200.0", "reg": " N", "voltage": "     24.0", "bus_voltage": "BUS_BS71", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "RD_P200Q0",
+      "generators": [
+        { "name": "GEN    1", "bus": "BUS_DSF2", "p": "    200.0", "q": "      0.0", "reg": " N", "voltage": "     24.0", "bus_voltage": "BUS_BS71", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "RD_P0Q200",
+      "generators": [
+        { "name": "GEN    1", "bus": "BUS_DSF2", "p": "      0.0", "q": "    200.0", "reg": " N", "voltage": "     24.0", "bus_voltage": "BUS_BS71", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "RA_P-200Q0",
+      "generators": [
+        { "name": "GEN    1", "bus": "BUS_ASF2", "p": "   -200.0", "q": "      0.0", "reg": " N", "voltage": "     24.0", "bus_voltage": "BUS_BS71", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "RA_P0Q-200",
+      "generators": [
+        { "name": "GEN    1", "bus": "BUS_ASF2", "p": "      0.0", "q": "   -200.0", "reg": " N", "voltage": "     24.0", "bus_voltage": "BUS_BS71", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "RB_P-200Q0",
+      "generators": [
+        { "name": "GEN    1", "bus": "BUS_BS71", "p": "   -200.0", "q": "      0.0", "reg": " N", "voltage": "     24.0", "bus_voltage": "BUS_BS71", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "RB_P0Q-200",
+      "generators": [
+        { "name": "GEN    1", "bus": "BUS_BS71", "p": "      0.0", "q": "   -200.0", "reg": " N", "voltage": "     24.0", "bus_voltage": "BUS_BS71", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "RC_P-200Q0",
+      "generators": [
+        { "name": "GEN    1", "bus": "BUS_CS71", "p": "   -200.0", "q": "      0.0", "reg": " N", "voltage": "     24.0", "bus_voltage": "BUS_BS71", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "RC_P0Q-200",
+      "generators": [
+        { "name": "GEN    1", "bus": "BUS_CS71", "p": "      0.0", "q": "   -200.0", "reg": " N", "voltage": "     24.0", "bus_voltage": "BUS_BS71", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "RD_P-200Q0",
+      "generators": [
+        { "name": "GEN    1", "bus": "BUS_DSF2", "p": "   -200.0", "q": "      0.0", "reg": " N", "voltage": "     24.0", "bus_voltage": "BUS_BS71", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "RD_P0Q-200",
+      "generators": [
+        { "name": "GEN    1", "bus": "BUS_DSF2", "p": "      0.0", "q": "   -200.0", "reg": " N", "voltage": "     24.0", "bus_voltage": "BUS_BS71", "type": "Eolien  " }
+      ]
+    }
+  ]
+}
+

@@ -1,0 +1,22 @@
+Report for node 12_CCE 1 - EAC:
+	Execution time: 0.006 seconds
+	Configuration:
+		Angle increment: 0.1 deg
+		Maximum OMIB integration angle: 270.0 deg
+	Outputs:
+		Critical angle: -1.598 rad [-91.545 deg]
+		Maximum angle: -3.615 rad [-207.145 deg]
+		OMIB:
+			Type: ZOOMIB
+			Stability state: POTENTIALLY STABLE
+			Swing state: BACKWARD
+			Critical generators: GEN    1
+			Properties:
+				PRE-FAULT:
+					Angle: 0.128 rad [7.355 deg] - Time: 0 ms - Angle shift: 0.118 rad [6.787 deg] - Constant power: 1.515 p.u. - Maximum power: 18.525 p.u.
+				DURING-FAULT:
+					Angle: 0.128 rad [7.355 deg] - Time: 0 ms - Angle shift: -0.041 rad [-2.325 deg] - Constant power: 6.093 p.u. - Maximum power: 0.499 p.u.
+				POST-FAULT:
+					Angle: 0.128 rad [7.355 deg] - Time: 0 ms - Angle shift: 0.09 rad [5.13 deg] - Constant power: -0.52 p.u. - Maximum power: 3.6 p.u.
+
+

@@ -1,0 +1,22 @@
+Report for node 13_CCE 1 - OTC:
+	Execution failed due to the following errors: Could not compute the time associated to the rotor angle 1.8239414752217424 rad.
+	Configuration:
+		Type of calculator: OMIBTaylorSeries
+		Critical angle shift: 4.0 deg
+	Inputs:
+		Critical angle: 1.701 rad [97.434 deg]
+		Maximum angle: 2.015 rad [115.434 deg]
+		OMIB:
+			Type: ZOOMIB
+			Stability state: POTENTIALLY STABLE
+			Swing state: FORWARD
+			Critical generators: N.SE5T 2, PALUET 3, PALUET 4, PENLYT 1
+			Properties:
+				PRE-FAULT:
+					Angle: 0.107 rad [6.134 deg] - Time: 0 ms - Angle shift: -0.499 rad [-28.614 deg] - Constant power: -43.912 p.u. - Maximum power: 78.606 p.u.
+				DURING-FAULT:
+					Angle: 0.107 rad [6.134 deg] - Time: 0 ms - Angle shift: -0.329 rad [-18.848 deg] - Constant power: -40.329 p.u. - Maximum power: 46.238 p.u.
+				POST-FAULT:
+					Angle: 0.107 rad [6.134 deg] - Time: 0 ms - Angle shift: -0.499 rad [-28.598 deg] - Constant power: -43.916 p.u. - Maximum power: 78.592 p.u.
+
+

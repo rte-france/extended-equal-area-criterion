@@ -763,13 +763,11 @@ class Network:
         #         bus_index = next(i for i, obj in enumerate(network.buses) if obj.name == bus_name)
         #         voltage_drop = Network.voltage_drop(admittance_array, voltage_array, bus_index)
         #         for obj, val in zip(network.buses, voltage_drop):
-        #             #obj.voltage = val
-        #             obj.update_voltage(abs(val) * obj.base_voltage, obj.phase_angle)
-        #
-        #         # Disconnect REN depending on voltage value
-        #         for obj in network.buses:
-        #             if obj.voltage_magnitude < obj.base_voltage * 0.5:
+        #             if abs(val) < abs(obj.voltage) * 0.85:
         #                 obj.ren.clear()
+        #
+        #         # Re-calculate admittance matrix based on REN disconnection
+        #         network._admittance_matrix = AdmittanceMatrix(network.buses)
 
     def get_disconnected_buses(self, state: NetworkState):
         """

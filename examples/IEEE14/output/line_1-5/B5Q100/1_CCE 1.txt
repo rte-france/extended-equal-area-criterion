@@ -1,0 +1,13 @@
+Report for node 1_CCE 1:
+	Execution time: 0.009 seconds
+	Outputs:
+		Cluster 0:
+			Critical generators: GEN    1
+			Critical angle: -1.824 rad [-104.533 deg]
+			Critical time: 407.126 ms
+			Maximum angle: -2.976 rad [-104.533 deg]
+			Maximum time: 1006.171 ms
+			OMIB stability state: POTENTIALLY STABLE
+			OMIB swing state: BACKWARD
+
+

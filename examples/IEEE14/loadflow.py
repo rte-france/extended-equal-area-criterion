@@ -11,11 +11,11 @@ from deeac.__main__ import deeac
 
 # -------------------------------------- CONFIGURATION -----------------------------------------------------------
 # Parameters to launch parts of the script
-create_ech_files = True
-launch_load_flow = True
+create_ech_files = False
+launch_load_flow = False
 launch_eeac = True
 # Parameters to create .ech files
-json_file = "sensitivity_Total_50.json"
+json_file = "sensitivity.json"
 file_ref = "fech.ech"
 gen_ref = (
     "G  GEN    1 Y BUS    1   -9999.       0.    9999.    -100.       0.     100. "

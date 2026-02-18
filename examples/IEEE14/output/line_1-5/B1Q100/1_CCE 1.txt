@@ -1,5 +1,5 @@
 Report for node 1_CCE 1:
-	Execution time: 0.008 seconds
+	Execution time: 0.015 seconds
 	Outputs:
 		Cluster 0:
 			Critical generators: GEN    1

@@ -1,0 +1,30 @@
+Report for node 13_CCE 1 - OTC:
+	Execution time: 0.0 seconds
+	Configuration:
+		Type of calculator: OMIBTaylorSeries
+		Critical angle shift: 4.0 deg
+	Inputs:
+		Critical angle: 0.73 rad [41.849 deg]
+		Maximum angle: 2.081 rad [119.249 deg]
+		OMIB:
+			Type: ZOOMIB
+			Stability state: POTENTIALLY STABLE
+			Swing state: FORWARD
+			Critical generators: GEN_AT 2
+			Properties:
+				PRE-FAULT:
+					Angle: 0.299 rad [17.149 deg] - Time: 0 ms - Angle shift: -0.33 rad [-18.914 deg] - Constant power: 2.827 p.u. - Maximum power: 9.854 p.u.
+				DURING-FAULT:
+					Angle: 0.299 rad [17.149 deg] - Time: 0 ms - Angle shift: -0.077 rad [-4.436 deg] - Constant power: 0.311 p.u. - Maximum power: 0.013 p.u.
+				POST-FAULT:
+					Angle: 0.299 rad [17.149 deg] - Time: 0 ms - Angle shift: -0.337 rad [-19.318 deg] - Constant power: 2.643 p.u. - Maximum power: 9.471 p.u.
+	Outputs:
+		Generators: GEN_AT 2, GEN_DT 2
+		Critical cluster: GEN_AT 2
+		Critical angle: 0.73 rad [41.849 deg]
+		Critical time: 204.774 ms
+		Maximum angle: 2.081 rad [119.249 deg]
+		Maximum time: 599.44 ms
+		OMIB stability state: POTENTIALLY STABLE
+		OMIB swing state: FORWARD
+

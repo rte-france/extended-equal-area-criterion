@@ -747,22 +747,21 @@ class Network:
 
         self._simplified_networks[NetworkState.POST_FAULT] = self.get_simplified_network()
 
-        for network in [self._simplified_networks[NetworkState.DURING_FAULT][0],
-                        self._simplified_networks[NetworkState.POST_FAULT][0]]:
-            voltage_array = np.array([bus.voltage for bus in network.buses])
-            admittance_array = network.admittance_matrix.matrix.toarray()
-            fictive_load = [l for b in network.buses for l in b.loads if isinstance(l, FictiveLoad)]
-            if fictive_load:
-                # Calculate voltage drop
-                bus_name = max(fictive_load, key=lambda x: abs(x.admittance)).bus.name
-                bus_index = next(i for i, obj in enumerate(network.buses) if obj.name == bus_name)
-                voltage_drop = Network.voltage_drop(admittance_array, voltage_array, bus_index)
-                for obj, val in zip(network.buses, voltage_drop):
-                    if abs(val) < abs(obj.voltage) * 0.85:
-                        obj.ren.clear()
-
-                # Re-calculate admittance matrix based on REN disconnection
-                network._admittance_matrix = AdmittanceMatrix(network.buses)
+        # for network in [self._simplified_networks[NetworkState.POST_FAULT][0]]:
+        #     voltage_array = np.array([bus.voltage for bus in network.buses])
+        #     admittance_array = network.admittance_matrix.matrix.toarray()
+        #     fictive_load = [l for b in network.buses for l in b.loads if isinstance(l, FictiveLoad)]
+        #     if fictive_load:
+        #         # Calculate voltage drop
+        #         bus_name = max(fictive_load, key=lambda x: abs(x.admittance)).bus.name
+        #         bus_index = next(i for i, obj in enumerate(network.buses) if obj.name == bus_name)
+        #         voltage_drop = Network.voltage_drop(admittance_array, voltage_array, bus_index)
+        #         for obj, val in zip(network.buses, voltage_drop):
+        #             if abs(val) < abs(obj.voltage) * 0.85:
+        #                 obj.ren.clear()
+        #
+        #         # Re-calculate admittance matrix based on REN disconnection
+        #         network._admittance_matrix = AdmittanceMatrix(network.buses)
 
     def get_disconnected_buses(self, state: NetworkState):
         """

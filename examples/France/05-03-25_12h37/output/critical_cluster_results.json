@@ -1,9 +1,10 @@
 {
-  "braud71pregu": {
+  "saus5y762": {
     "status": "POTENTIALLY STABLE",
     "swing_state": "FORWARD",
-    "critical_cluster": "BLAYAT 1, BLAYAT 3, BLAYAT 4",
+    "critical_cluster": "GRAV5T 3, N.SE5T 1, N.SE5T 2, PALUET 1, PALUET 2, PALUET 3, PALUET 4, PENLYT 1",
     "node_id": 2,
-    "CCT": 0.18203955658071938
+    "CCT": 0.49424022912458226,
+    "warning": "1 failed candidates: 3"
   }
 }

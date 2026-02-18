@@ -1,0 +1,104 @@
+{
+  "configurations": [
+    {
+      "name": "Main"
+    },
+    {
+      "name": "BAP200",
+      "generators": [
+        { "name": "GEN    1", "bus": "BUS_ASF2", "p": "    200.0", "q": "      0.0", "reg": " N", "voltage": "     24.0", "bus_voltage": "BUS_ASF2", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "BAP100",
+      "generators": [
+        { "name": "GEN    1", "bus": "BUS_ASF2", "p": "    100.0", "q": "      0.0", "reg": " N", "voltage": "     24.0", "bus_voltage": "BUS_ASF2", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "BAQ200",
+      "generators": [
+        { "name": "GEN    1", "bus": "BUS_ASF2", "p": "      0.0", "q": "    200.0", "reg": " N", "voltage": "     24.0", "bus_voltage": "BUS_ASF2", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "BAQ100",
+      "generators": [
+        { "name": "GEN    1", "bus": "BUS_ASF2", "p": "      0.0", "q": "    100.0", "reg": " N", "voltage": "     24.0", "bus_voltage": "BUS_ASF2", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "BBP200",
+      "generators": [
+        { "name": "GEN    1", "bus": "BUS_BS71", "p": "    200.0", "q": "      0.0", "reg": " N", "voltage": "     24.0", "bus_voltage": "BUS_BS71", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "BBP100",
+      "generators": [
+        { "name": "GEN    1", "bus": "BUS_BS71", "p": "    100.0", "q": "      0.0", "reg": " N", "voltage": "     24.0", "bus_voltage": "BUS_BS71", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "BBQ200",
+      "generators": [
+        { "name": "GEN    1", "bus": "BUS_BS71", "p": "      0.0", "q": "    200.0", "reg": " N", "voltage": "     24.0", "bus_voltage": "BUS_BS71", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "BBQ100",
+      "generators": [
+        { "name": "GEN    1", "bus": "BUS_BS71", "p": "      0.0", "q": "    100.0", "reg": " N", "voltage": "     24.0", "bus_voltage": "BUS_BS71", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "BCP200",
+      "generators": [
+        { "name": "GEN    1", "bus": "BUS_CS71", "p": "    200.0", "q": "      0.0", "reg": " N", "voltage": "     24.0", "bus_voltage": "BUS_CS71", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "BCP100",
+      "generators": [
+        { "name": "GEN    1", "bus": "BUS_CS71", "p": "    100.0", "q": "      0.0", "reg": " N", "voltage": "     24.0", "bus_voltage": "BUS_CS71", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "BCQ200",
+      "generators": [
+        { "name": "GEN    1", "bus": "BUS_CS71", "p": "      0.0", "q": "    200.0", "reg": " N", "voltage": "     24.0", "bus_voltage": "BUS_CS71", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "BCQ100",
+      "generators": [
+        { "name": "GEN    1", "bus": "BUS_CS71", "p": "      0.0", "q": "    100.0", "reg": " N", "voltage": "     24.0", "bus_voltage": "BUS_CS71", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "BDP200",
+      "generators": [
+        { "name": "GEN    1", "bus": "BUS_CS71", "p": "    200.0", "q": "      0.0", "reg": " N", "voltage": "     24.0", "bus_voltage": "BUS_CS71", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "BDP100",
+      "generators": [
+        { "name": "GEN    1", "bus": "BUS_CS71", "p": "    100.0", "q": "      0.0", "reg": " N", "voltage": "     24.0", "bus_voltage": "BUS_CS71", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "BDQ200",
+      "generators": [
+        { "name": "GEN    1", "bus": "BUS_CS71", "p": "      0.0", "q": "    200.0", "reg": " N", "voltage": "     24.0", "bus_voltage": "BUS_CS71", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "BDQ100",
+      "generators": [
+        { "name": "GEN    1", "bus": "BUS_CS71", "p": "      0.0", "q": "    100.0", "reg": " N", "voltage": "     24.0", "bus_voltage": "BUS_CS71", "type": "Eolien  " }
+      ]
+    }
+  ]
+}
+

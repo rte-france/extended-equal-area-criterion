@@ -752,8 +752,7 @@ class Network:
 
         self._simplified_networks[NetworkState.POST_FAULT] = self.get_simplified_network()
 
-        # for network in [self._simplified_networks[NetworkState.DURING_FAULT][0],
-        #                 self._simplified_networks[NetworkState.POST_FAULT][0]]:
+        # for network in [self._simplified_networks[NetworkState.POST_FAULT][0]]:
         #     voltage_array = np.array([bus.voltage for bus in network.buses])
         #     admittance_array = network.admittance_matrix.matrix.toarray()
         #     fictive_load = [l for b in network.buses for l in b.loads if isinstance(l, FictiveLoad)]

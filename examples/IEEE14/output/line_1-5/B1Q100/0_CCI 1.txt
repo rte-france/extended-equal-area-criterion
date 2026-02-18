@@ -1,5 +1,5 @@
 Report for node 0_CCI 1:
-	Execution time: 0.001 seconds
+	Execution time: 0.002 seconds
 	Configuration:
 		Type of identifier: DuringFaultTrajectoryCriticalClustersIdentifier
 		Threshold: 0.5

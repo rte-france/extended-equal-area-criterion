@@ -1,5 +1,5 @@
 Report for node 13_CCE 1 - OTC:
-	Execution time: 0.0 seconds
+	Execution time: 0.001 seconds
 	Configuration:
 		Type of calculator: OMIBTaylorSeries
 		Critical angle shift: 4.0 deg

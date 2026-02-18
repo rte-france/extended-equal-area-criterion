@@ -1,5 +1,5 @@
 Report for node 13_CCE 1 - OTC:
-	Execution failed due to the following errors: Could not compute the time associated to the rotor angle 1.8239414752217424 rad.
+	Execution failed due to the following errors: Could not compute the time associated to the rotor angle 1.8239414752217389 rad.
 	Configuration:
 		Type of calculator: OMIBTaylorSeries
 		Critical angle shift: 4.0 deg

@@ -1,5 +1,5 @@
 Report for node 11_CCE 1 - OMIB:
-	Execution time: 0.21 seconds
+	Execution time: 0.219 seconds
 	Configuration:
 		Type of OMIB: ZOOMIB
 	Output:

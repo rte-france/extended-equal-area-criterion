@@ -19,7 +19,7 @@ class REN:
     """
 
     def __init__(
-        self, name: str, bus: 'Bus', active_power: float, reactive_power: float, connected: bool = True
+        self, name: str, bus: 'Bus', active_power: float, reactive_power: float, model: str, connected: bool = True
     ):
         """
         Initialize a REN.
@@ -28,9 +28,11 @@ class REN:
         :param bus: Bus to which the REN is connected.
         :param active_power: Active power of the REN. Unit: MW.
         :param reactive_power: Reactive power of the REN. Unit: MVAr.
+        :param model: REN model (load or current_source).
         :param connected: True if the REN is connected to the network, False otherwise.
         """
         self.name = name
+        self.model = model
         self._bus = bus
 
         self.active_power = active_power
@@ -42,14 +44,15 @@ class REN:
         if bus.voltage!=0:
             self.current = (self._active_power_pu - 1j * self._reactive_power_pu) / bus.voltage.conjugate()
         else:
-            self.current = 0
+            self.current = 0j
 
         # Compute properties
         self._complex_power_pu = complex(self._active_power_pu, self._reactive_power_pu)
-        if self.bus.voltage_magnitude_pu!=0:
-            self.admittance = np.conj(self._complex_power_pu) / self.bus.voltage_magnitude_pu ** 2
-        else:
-            self.admittance = 0
+        if self.model == "load":
+            if self.bus.voltage_magnitude_pu!=0:
+                self.admittance = np.conj(self._complex_power_pu) / self.bus.voltage_magnitude_pu ** 2
+            else:
+                self.admittance = 0j
 
     def __repr__(self):
         """

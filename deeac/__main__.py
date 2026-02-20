@@ -41,12 +41,13 @@ def deeac(argv):
     :param -r, --rewrite: rewrite data if output-dir already exists.
     :param -v, --verbose: Verbose mode. Display additional results.
     :param -g --global-configuration <path>: json file replacing all the arguments above
+    :param -a, --ren-model <path>: type of model used for REN generators.
     :param -h, --help: Display help on the standard output.
     :param -w, --warn: warning if there's a failing critical cluster candidate
     """
 
     ech_file, dta_file, lf_file, execution_tree_file, execution_tree, seq_file, seq_files, island_threshold, \
-        cores, protection_delay, verbose, output_dir, json_path, rewrite, warn = parse(argv)
+        cores, protection_delay, verbose, output_dir, json_path, rewrite, ren_model, warn = parse(argv)
 
     if output_dir is not None:
         # Check if output directory already exists
@@ -78,7 +79,7 @@ def deeac(argv):
     try:
         print("Loading execution tree ...")
         tree_loader = EEACTreeLoader(
-            tree_parser=JSONTreeParser(execution_tree_file, execution_tree)
+            tree_parser = JSONTreeParser(execution_tree_file, execution_tree)
         )
         eeac_tree = tree_loader.load_eeac_tree()
         tree_loading_time = datetime.now()
@@ -88,12 +89,13 @@ def deeac(argv):
 
         print("Loading use case ...")
         network_loader = NetworkLoader(
-            topology_parser=EurostagTopologyParser(
-                ech_file=ech_file,
-                dta_file=dta_file
+            topology_parser = EurostagTopologyParser(
+                ech_file = ech_file,
+                dta_file = dta_file,
+                ren_model = ren_model
             ),
-            load_flow_parser=EurostagLoadFlowParser(
-                load_flow_results_file=lf_file
+            load_flow_parser = EurostagLoadFlowParser(
+                load_flow_results_file = lf_file
             )
         )
         network = network_loader.load_network()

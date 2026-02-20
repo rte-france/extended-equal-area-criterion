@@ -452,9 +452,15 @@ class Network:
                 # Get load flow data (REN Data come from generators load flow data)
                 try:
                     load_flow_ren = load_flow.generators[ren.name]
-                    # Read load flow data for active (P) and reactive (Q) powers
-                    active_power = -1 * load_flow_ren.active_power.value
-                    reactive_power = -1 * load_flow_ren.reactive_power.value
+                    # Read load flow data for active (P) and reactive (Q) powers:
+                    # - Load model: load behavior
+                    # - Current source model: generator behavior
+                    if ren.model == "load":
+                        active_power = -1 * load_flow_ren.active_power.value
+                        reactive_power = -1 * load_flow_ren.reactive_power.value
+                    else:
+                        active_power = load_flow_ren.active_power.value
+                        reactive_power = load_flow_ren.reactive_power.value
                 except KeyError:
                     # No load flow data for this REN
                     if ren.connected:
@@ -471,7 +477,8 @@ class Network:
                         bus=bus,
                         active_power=active_power,
                         reactive_power=reactive_power,
-                        connected=ren.connected
+                        connected=ren.connected,
+                        model = ren.model
                     )
                 )
         # Create loads

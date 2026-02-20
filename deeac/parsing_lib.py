@@ -32,6 +32,7 @@ def print_usage():
         f"\t-s, --seq-file <path>{tab}Path to the sequence file.\n"
         f"\t-f, --seq-file-path <path>{tab}Path to the folder containing all the sequence files to run.\n"
         f"\t-t, --execution-tree-file <path>{tab}Path to a JSON file containing the EEAC tree to execute.\n"
+        f"\t-a, --ren-model <path>{tab}Path to a JSON file containing the model used for REN generators.\n"
         f"\t-i, --island-threshold <float>{tab}tolerable amount of isolated production in MW in case of islanding.\n"
         f"\t-p, --protection-delay <float>{tab}tolerable delay between the first and last BusShortCircuitEvent in ms.\n"
         f"Options:\n"
@@ -54,7 +55,7 @@ def parse(argv):
     try:
         opts, _ = getopt.getopt(
             argv,
-            "rhve:d:l:s:f:t:o:c:j:i:g:p:w:",
+            "rhve:d:l:s:f:t:o:c:j:i:g:p:a:w:",
             [
                 "help",
                 "ech-file=",
@@ -69,6 +70,7 @@ def parse(argv):
                 "island-threshold=",
                 "global-configuration="
                 "protection-delay=",
+                "ren-model=",
                 "verbose",
                 "rewrite",
                 "warn"
@@ -93,6 +95,7 @@ def parse(argv):
     rewrite = False
     verbose = False
     warn = False
+    ren_model = "load"
     cores = 1
     island_threshold = 0
     protection_delay = 0
@@ -120,6 +123,8 @@ def parse(argv):
                 seq_file_folder = arg
             elif opt in ("-t", "--execution-tree-file"):
                 execution_tree_file = arg
+            elif opt in ("-a", "--ren-model"):
+                ren_model = arg
             elif opt in ("-o", "--output-dir"):
                 output_dir = arg
             elif opt in ("-c", "--cores"):
@@ -310,4 +315,4 @@ def parse(argv):
     seq_files.sort()
 
     return ech_file, dta_file, lf_file, execution_tree_file, execution_tree, seq_file, seq_files, \
-        island_threshold, cores, protection_delay, verbose, output_dir, json_path, rewrite, warn
+        island_threshold, cores, protection_delay, verbose, output_dir, json_path, rewrite, ren_model, warn

@@ -30,7 +30,7 @@ class EurostagTopologyParser(TopologyParser):
     This topology is obtained from .ech and .dta files.
     """
 
-    def __init__(self, ech_file: str, dta_file: str):
+    def __init__(self, ech_file: str, dta_file: str, ren_model: str):
         """
         Initialize the parser with path to .ech and .dta files.
 
@@ -39,6 +39,7 @@ class EurostagTopologyParser(TopologyParser):
         """
         self.ech_file_parser = EchEurostagFileParser(ech_file)
         self.dta_file_parser = DtaEurostagFileParser(dta_file)
+        self.ren_model = ren_model
 
     def parse_network_topology(self) -> NetworkTopology:
         """
@@ -389,6 +390,8 @@ class EurostagTopologyParser(TopologyParser):
                     # Regulating mode
                     ren_content["regulating"] = True \
                         if ren_data.regulating_mode == GeneratorRegulatingMode.REGULATING else False
+
+                    ren_content["model"] = self.ren_model
 
                     # Create REN
                     ren.append(REN(**ren_content))

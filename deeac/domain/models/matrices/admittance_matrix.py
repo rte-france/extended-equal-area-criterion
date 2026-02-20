@@ -10,9 +10,8 @@
 import cmath
 
 import numpy as np
-from typing import List, Dict, Deque, Any
-from collections import deque, defaultdict
-from scipy.sparse import linalg, coo_matrix
+from typing import List, Dict, Deque
+from scipy.sparse import linalg, coo_matrix, csc_matrix
 from deeac.domain.models import Bus, Generator, Transformer, Line
 from .bus_matrix import BusMatrix
 
@@ -32,6 +31,8 @@ class AdmittanceMatrix(BusMatrix):
         # Sort buses so that buses associated to a generator come first
         sorted_buses = sorted(buses, key=lambda bus: int(len(bus.generators) == 0))
         self._generator_buses = [bus for bus in sorted_buses if bus.generators]
+        self._ren_buses = [bus for bus in sorted_buses if not bus.generators
+                           for ren in bus.ren if ren.model == "current"]
 
         # Get indexes
         bus_indexes = self._build_index_mapping(sorted_buses)
@@ -51,6 +52,15 @@ class AdmittanceMatrix(BusMatrix):
         """
         return self._generator_buses
 
+    @property
+    def ren_buses(self) -> List[Bus]:
+        """
+        Return a list of the buses associated to a ren.
+
+        :return: A list of the buses associated to a ren.
+        """
+        return self._ren_buses
+
     def _build_matrix(self, buses: Deque[Bus], bus_indexes: Dict[str, int]) -> np.array:
         """
         Build the admittance matrix.
@@ -67,7 +77,7 @@ class AdmittanceMatrix(BusMatrix):
 
         for i, bus in enumerate(buses):
             loads = bus.loads
-            rens = bus.ren
+            rens = {ren for ren in bus.ren if ren.model=="load"}
             capacitor_banks = bus.capacitor_banks
             bus_name = bus.name
 
@@ -191,7 +201,7 @@ class ReducedAdmittanceMatrix(BusMatrix):
         """
         matrix = self._build_matrix(admittance_matrix)
         # Get indexes and create the bus matrix
-        bus_indexes = self._build_index_mapping(admittance_matrix.generator_buses)
+        bus_indexes = self._build_index_mapping(admittance_matrix.generator_buses + admittance_matrix.ren_buses)
         super().__init__(matrix=matrix, bus_indexes=bus_indexes)
 
     @staticmethod
@@ -210,17 +220,55 @@ class ReducedAdmittanceMatrix(BusMatrix):
         :return: A numpy array with the content of the reduced admittance matrix.
         """
         # Number of buses in the matrix connected to a generator
-        nb_generator_buses = len(admittance_matrix.generator_buses)
+        nb_gen = len(admittance_matrix.generator_buses)
+        nb_ren = len(admittance_matrix.ren_buses)
 
-        # Split the matrix into 4 parts
-        y_generators = admittance_matrix.matrix[:nb_generator_buses, :nb_generator_buses]
-        y_non_generators = admittance_matrix.matrix[nb_generator_buses:, nb_generator_buses:]
-        y_upper_right = admittance_matrix.matrix[:nb_generator_buses, nb_generator_buses:]
-        y_lower_left = admittance_matrix.matrix[nb_generator_buses:, :nb_generator_buses]
+        Ynn = admittance_matrix.matrix[:nb_gen, :nb_gen]
+        Yns = admittance_matrix.matrix[:nb_gen, nb_gen:(nb_ren + nb_gen)]
+        Ynr = admittance_matrix.matrix[:nb_gen, (nb_ren + nb_gen):]
+        Ysn = admittance_matrix.matrix[nb_gen:(nb_gen + nb_ren), :nb_gen]
+        Yss = admittance_matrix.matrix[nb_gen:(nb_gen + nb_ren), nb_gen:(nb_ren + nb_gen)]
+        Ysr = admittance_matrix.matrix[nb_gen:(nb_gen + nb_ren), (nb_ren + nb_gen):]
+        Yrn = admittance_matrix.matrix[(nb_gen + nb_ren):, :nb_gen]
+        Yrs = admittance_matrix.matrix[(nb_gen + nb_ren):, nb_gen:(nb_ren + nb_gen)]
+        Yrr = admittance_matrix.matrix[(nb_gen + nb_ren):, (nb_ren + nb_gen):]
 
-        # Compute the reduced matrix
-        lu = linalg.splu(y_non_generators)
-        temp = lu.solve(y_lower_left.toarray())
-        reduced_matrix = y_generators - y_upper_right @ temp
+        # LU Factorisation
+        lu = linalg.splu(Yrr)
+
+        # Schur products
+        Yrr_inv_Yrn = lu.solve(Yrn.toarray())
+        if nb_ren!=0:
+            Yrr_inv_Yrs = lu.solve(Yrs.toarray())
+
+        # Blocs calculation
+        Rnn = Ynn - Ynr @ Yrr_inv_Yrn
+        if nb_ren != 0:
+            Rns = Yns - Ynr @ Yrr_inv_Yrs
+            Rsn = Ysn - Ysr @ Yrr_inv_Yrn
+            Rss = Yss - Ysr @ Yrr_inv_Yrs
+
+            # ----------------------------
+            # Reduced Matrix modification
+            # ----------------------------
+
+            # LU Factorisation
+            lu = linalg.splu(csc_matrix(Rss))
+
+            # Schur product
+            Rss_inv_Rsn = lu.solve(Rsn)
+            Rss_inv = lu.solve(np.eye(Rss.shape[0]))
+
+            # Blocs calculation
+            Dnn = Rnn - Rns @ Rss_inv_Rsn
+            Dns = Rns @ Rss_inv
+            Dsn = -Rss_inv_Rsn
+            Dss = Rss_inv
+
+        # reduced matrix
+        if nb_ren == 0:
+            reduced_matrix = Rnn
+        else:
+            reduced_matrix = np.block([[Dnn, Dns], [Dsn, Dss]])
 
         return reduced_matrix

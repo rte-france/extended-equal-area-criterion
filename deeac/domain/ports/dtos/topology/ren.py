@@ -25,4 +25,5 @@ class REN(BaseModel):
     max_active_power: Value
     reactive_power: Optional[Value]
     source: Optional[str]
+    model: str
     regulating: bool

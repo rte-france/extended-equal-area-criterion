@@ -41,7 +41,7 @@ def deeac(argv):
     :param -r, --rewrite: rewrite data if output-dir already exists.
     :param -v, --verbose: Verbose mode. Display additional results.
     :param -g --global-configuration <path>: json file replacing all the arguments above
-    :param -a, --ren-model <path>: type of model used for REN generators.
+    :param --rm, --ren-model <str>: type of model used for REN generators.
     :param -h, --help: Display help on the standard output.
     :param -w, --warn: warning if there's a failing critical cluster candidate
     """

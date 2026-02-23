@@ -14,7 +14,7 @@ Library parsing the input arguments of EEAC
 import os
 import sys
 import json
-import getopt
+import argparse
 
 
 def print_usage():
@@ -32,7 +32,7 @@ def print_usage():
         f"\t-s, --seq-file <path>{tab}Path to the sequence file.\n"
         f"\t-f, --seq-file-path <path>{tab}Path to the folder containing all the sequence files to run.\n"
         f"\t-t, --execution-tree-file <path>{tab}Path to a JSON file containing the EEAC tree to execute.\n"
-        f"\t-a, --ren-model <path>{tab}Path to a JSON file containing the model used for REN generators.\n"
+        f"\t--rm, --ren-model <str>{tab}type of model used for REN generators.\n"
         f"\t-i, --island-threshold <float>{tab}tolerable amount of isolated production in MW in case of islanding.\n"
         f"\t-p, --protection-delay <float>{tab}tolerable delay between the first and last BusShortCircuitEvent in ms.\n"
         f"Options:\n"
@@ -51,268 +51,192 @@ def parse(argv):
     """
     Parse the input arguments or the global configuration file
     """
-    # Get arguments
+
+    parser = argparse.ArgumentParser(
+        prog="deeac",
+        add_help=False
+    )
+
+    # Help manuel
+    parser.add_argument("-h", "--help", action="store_true")
+
+    # Arguments files
+    parser.add_argument("-e", "--ech-file")
+    parser.add_argument("-d", "--dta-file")
+    parser.add_argument("-l", "--lf-file")
+    parser.add_argument("-s", "--seq-file")
+    parser.add_argument("-f", "--seq-file-folder")
+    parser.add_argument("-t", "--execution-tree-file")
+    parser.add_argument("-o", "--output-dir")
+    parser.add_argument("-j", "--json-results")
+
+    # Numerical parameters
+    parser.add_argument("-c", "--cores", type=int, default=1)
+    parser.add_argument("-i", "--island-threshold", type=float, default=0)
+    parser.add_argument("-p", "--protection-delay", type=float, default=0)
+
+    # Flags
+    parser.add_argument("-r", "--rewrite", action="store_true")
+    parser.add_argument("-v", "--verbose", action="store_true")
+    parser.add_argument("-w", "--warn", action="store_true")
+
+    # Others
+    parser.add_argument("--rm", "--ren-model", dest = "ren_model", default="load")
+    parser.add_argument("-g", "--global-configuration")
+
     try:
-        opts, _ = getopt.getopt(
-            argv,
-            "rhve:d:l:s:f:t:o:c:j:i:g:p:a:w:",
-            [
-                "help",
-                "ech-file=",
-                "dta-file=",
-                "lf-file=",
-                "seq-file=",
-                "seq-file-folder=",
-                "execution-tree-file=",
-                "output-dir=",
-                "cores=",
-                "json-results=",
-                "island-threshold=",
-                "global-configuration="
-                "protection-delay=",
-                "ren-model=",
-                "verbose",
-                "rewrite",
-                "warn"
-            ]
-        )
-    except getopt.GetoptError as e:
-        # Bad arguments
-        print(f"Error: {e}")
+        args = parser.parse_args(argv)
+    except SystemExit:
         print_usage()
         sys.exit(2)
 
-    # Check arguments
-    ech_file = None
-    dta_file = None
-    lf_file = None
-    seq_file = None
-    seq_file_folder = None
-    execution_tree_file = None
-    execution_tree = None
-    output_dir = None
-    json_path = None
-    rewrite = False
-    verbose = False
-    warn = False
-    ren_model = "load"
-    cores = 1
-    island_threshold = 0
-    protection_delay = 0
-    global_config = None
-    for opt, arg in opts:
-        if opt in ("-g", "--global-configuration"):
-            if len(opts) > 1:
-                print(f"WARNING: {len(opts)} arguments specified, only the global configuration file will be used")
-            global_config = arg
-            break
-    else:
-        for opt, arg in opts:
-            if opt in ("-h", "--help"):
-                print_usage()
-                sys.exit()
-            elif opt in ("-e", "--ech-file"):
-                ech_file = arg
-            elif opt in ("-d", "--dta-file"):
-                dta_file = arg
-            elif opt in ("-l", "--lf-file"):
-                lf_file = arg
-            elif opt in ("-s", "--seq-file"):
-                seq_file = arg
-            elif opt in ("-f", "--seq-file-folder"):
-                seq_file_folder = arg
-            elif opt in ("-t", "--execution-tree-file"):
-                execution_tree_file = arg
-            elif opt in ("-a", "--ren-model"):
-                ren_model = arg
-            elif opt in ("-o", "--output-dir"):
-                output_dir = arg
-            elif opt in ("-c", "--cores"):
-                cores = int(arg)
-            elif opt in ("-i", "--island-threshold"):
-                island_threshold = float(arg)
-            elif opt in ("-p", "--protection-delay"):
-                protection_delay = float(arg)
-            elif opt in ("-j", "--json-results"):
-                json_path = arg
-            elif opt in ("-v", "--verbose"):
-                verbose = True
-            elif opt in ("-r", "--rewrite"):
-                rewrite = True
-            elif opt in ("-w", "--warn"):
-                warn = True
+    # Explicit Help
+    if args.help:
+        print_usage()
+        sys.exit(0)
 
-    try:
-        cores = int(cores)
-    except ValueError:
-        raise ValueError(f"Number of cores must be an integer: {cores} not allowed")
+    # -----------------------
+    # PRIORITY TO GLOBAL FILE
+    # -----------------------
 
-    if global_config is not None:
+    if args.global_configuration:
+
+        if len(argv) > 2:
+            print("WARNING: multiple arguments specified, only the global configuration file will be used")
+
         try:
-            global_config = json.load(open(global_config, "r"))
+            with open(args.global_configuration, "r") as f:
+                config = json.load(f)
         except json.JSONDecodeError:
-            raise IOError(f"Failed to parse JSON global configuration file {global_config}")
+            print(f"Failed to parse JSON global configuration file {args.global_configuration}")
+            sys.exit(2)
 
-        try:
-            ech_file = global_config["ech"]
-        except KeyError:
-            ech_file = global_config["ech-file"]
+        def get_key(*names):
+            for name in names:
+                if name in config:
+                    return config[name]
+            return None
 
-        try:
-            dta_file = global_config["dta"]
-        except KeyError:
-            dta_file = global_config["dta-file"]
+        ech_file = get_key("ech", "ech-file")
+        dta_file = get_key("dta", "dta-file")
+        lf_file = get_key("lf", "lf-file")
+        seq_file = get_key("seq", "seq-file")
+        seq_file_folder = get_key("seqs", "seq-files-folder")
+        execution_tree = get_key("tree", "execution-tree", "branch")
+        execution_tree_file = get_key("tree-file", "execution-tree-file")
+        output_dir = get_key("output-dir")
+        json_path = get_key("json-results")
+        cores = get_key("cores") or 1
+        island_threshold = get_key("island-threshold") or 0
+        protection_delay = get_key("protection-delay") or 0
+        rewrite = bool(get_key("rewrite") or False)
+        verbose = bool(get_key("verbose") or False)
+        warn = bool(get_key("warn") or False)
+        ren_model = get_key("ren-model") or "load"
 
-        try:
-            lf_file = global_config["lf"]
-        except KeyError:
-            lf_file = global_config["lf-file"]
+    else:
+        ech_file = args.ech_file
+        dta_file = args.dta_file
+        lf_file = args.lf_file
+        seq_file = args.seq_file
+        seq_file_folder = args.seq_file_folder
+        execution_tree_file = args.execution_tree_file
+        execution_tree = None
+        output_dir = args.output_dir
+        json_path = args.json_results
+        cores = args.cores
+        island_threshold = args.island_threshold
+        protection_delay = args.protection_delay
+        rewrite = args.rewrite
+        verbose = args.verbose
+        warn = args.warn
+        ren_model = args.ren_model
 
-        try:
-            seq_file = global_config["seq"]
-        except KeyError:
-            try:
-                seq_file = global_config["seq-file"]
-            except KeyError:
-                pass
+    # -----------
+    # VALIDATIONS
+    # -----------
 
-        try:
-            seq_file_folder = global_config["seqs"]
-        except KeyError:
-            try:
-                seq_file_folder = global_config["seq-files-folder"]
-            except KeyError:
-                pass
-
-        try:
-            execution_tree = global_config["tree"]
-        except KeyError:
-            try:
-                execution_tree = global_config["execution-tree"]
-            except KeyError:
-                try:
-                    execution_tree = global_config["branch"]
-                except KeyError:
-                    pass
-
-        try:
-            execution_tree_file = global_config["tree-file"]
-        except KeyError:
-            try:
-                execution_tree_file = global_config["execution-tree-file"]
-            except KeyError:
-                pass
-
-        try:
-            output_dir = global_config["output-dir"]
-        except KeyError:
-            pass
-
-        try:
-            json_path = global_config["json-results"]
-        except KeyError:
-            pass
-
-        try:
-            cores = global_config["cores"]
-        except KeyError:
-            pass
-
-        try:
-            island_threshold = global_config["island-threshold"]
-        except KeyError:
-            pass
-
-        try:
-            protection_delay = global_config["protection-delay"]
-        except KeyError:
-            pass
-
-        try:
-            rewrite = global_config["rewrite"]
-            if isinstance(rewrite, str):
-                if rewrite.lower() == "true":
-                    rewrite = True
-                else:
-                    rewrite = False
-        except KeyError:
-            pass
-
-        try:
-            verbose = global_config["verbose"]
-            if isinstance(verbose, str):
-                if verbose.lower() == "true":
-                    verbose = True
-                else:
-                    verbose = False
-        except KeyError:
-            pass
-
-        try:
-            warn = global_config["warn"]
-            if isinstance(verbose, str):
-                if warn.lower() == "true":
-                    warn = True
-                else:
-                    warn = False
-        except KeyError:
-            pass
-
-    if warn is True:
+    if warn:
         print("WARNING: the warning option is activated, the CCT will not be computed if any candidates cluster fails")
 
-    if json_path is not None and output_dir is not None:
-        # There must be either an output folder for everything or simply a path towards the main results
+    if json_path and output_dir:
         print("Error: A path towards an output file and output folder can't both be specified")
         print_usage()
-        exit(2)
+        sys.exit(2)
+
     if ech_file is None or dta_file is None:
-        # Input data files must be specified.
         print("Error: A path to the static and dynamic data must be specified.")
         print_usage()
-        exit(2)
+        sys.exit(2)
+
     if lf_file is None:
-        # Load flow file must be specified.
         print("Error: A path to the load flow results must be specified.")
         print_usage()
-        exit(2)
+        sys.exit(2)
+
     if not ((seq_file is None) ^ (seq_file_folder is None)):
-        # Either a sequence file or a folder containing sequence files is needed.
         print("Error: A path to a sequence file must be specified.")
         print_usage()
-        exit(2)
+        sys.exit(2)
+
     if execution_tree is None:
         if execution_tree_file is None:
-            # An execution tree file is needed.
             print("Error: An execution tree file must be specified.")
             print_usage()
-            exit(2)
+            sys.exit(2)
         elif not os.path.exists(execution_tree_file):
             print(f"Error: file {execution_tree_file} not found")
-            exit(2)
+            sys.exit(2)
 
-    # Check that the files specified as input actually exist
     for input_file in (ech_file, dta_file, lf_file):
         if not os.path.exists(input_file):
             print(f"Error: file {input_file} not found")
-            exit(2)
+            sys.exit(2)
 
-    seq_files = list()
-    if seq_file is not None and not os.path.exists(seq_file):
-        print(f"Error: file {seq_file} not found")
-        exit(2)
-    elif seq_file is None:
+    # --------
+    # SEQUENCE
+    # --------
+
+    seq_files = []
+
+    if seq_file:
+        if not os.path.exists(seq_file):
+            print(f"Error: file {seq_file} not found")
+            sys.exit(2)
+    else:
         if not os.path.isdir(seq_file_folder):
             print(f"Error: folder {seq_file_folder} not found")
-            exit(2)
-        else:
-            for file in os.listdir(seq_file_folder):
-                if os.path.splitext(file)[1] == ".seq":
-                    seq_files.append(os.path.join(seq_file_folder, file))
+            sys.exit(2)
+
+        for file in os.listdir(seq_file_folder):
+            if os.path.splitext(file)[1] == ".seq":
+                seq_files.append(os.path.join(seq_file_folder, file))
 
     if len(seq_files) == 1:
         seq_file = seq_files[0]
+
     seq_files.sort()
 
-    return ech_file, dta_file, lf_file, execution_tree_file, execution_tree, seq_file, seq_files, \
-        island_threshold, cores, protection_delay, verbose, output_dir, json_path, rewrite, ren_model, warn
+    # Execute tree if necessary
+    if execution_tree is None and execution_tree_file:
+        with open(execution_tree_file) as f:
+            execution_tree = json.load(f)
+
+    return (
+        ech_file,
+        dta_file,
+        lf_file,
+        execution_tree_file,
+        execution_tree,
+        seq_file,
+        seq_files,
+        island_threshold,
+        cores,
+        protection_delay,
+        verbose,
+        output_dir,
+        json_path,
+        rewrite,
+        ren_model,
+        warn,
+    )

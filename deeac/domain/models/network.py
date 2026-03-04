@@ -754,21 +754,25 @@ class Network:
 
         self._simplified_networks[NetworkState.POST_FAULT] = self.get_simplified_network()
 
-        # for network in [self._simplified_networks[NetworkState.POST_FAULT][0]]:
-        #     voltage_array = np.array([bus.voltage for bus in network.buses])
-        #     admittance_array = network.admittance_matrix.matrix.toarray()
-        #     fictive_load = [l for b in network.buses for l in b.loads if isinstance(l, FictiveLoad)]
-        #     if fictive_load:
-        #         # Calculate voltage drop
-        #         bus_name = max(fictive_load, key=lambda x: abs(x.admittance)).bus.name
-        #         bus_index = next(i for i, obj in enumerate(network.buses) if obj.name == bus_name)
-        #         voltage_drop = Network.voltage_drop(admittance_array, voltage_array, bus_index)
-        #         for obj, val in zip(network.buses, voltage_drop):
-        #             if abs(val) < abs(obj.voltage) * 0.85:
-        #                 obj.ren.clear()
-        #
-        #         # Re-calculate admittance matrix based on REN disconnection
-        #         network._admittance_matrix = AdmittanceMatrix(network.buses)
+        # Delete REN objects from Post fault network is voltage drop due the the fault is more than 85% of the
+        # initial bus voltage value. As fictive loads are deleted in post fault situations, we need to calculate
+        # voltage drop in during fault situation, and then to apply the deleting in the post fault situation.
+        network_during_fault = self._simplified_networks[NetworkState.DURING_FAULT][0]
+        network_post_fault = self._simplified_networks[NetworkState.POST_FAULT][0]
+        voltage_array = np.array([bus.voltage for bus in network_during_fault.buses])
+        admittance_array = network_during_fault.admittance_matrix.matrix.toarray()
+        fictive_load = [l for b in network_during_fault.buses for l in b.loads if isinstance(l, FictiveLoad)]
+        if fictive_load:
+            # Calculate voltage drop
+            bus_name = max(fictive_load, key=lambda x: abs(x.admittance)).bus.name
+            bus_index = next(i for i, obj in enumerate(network_during_fault.buses) if obj.name == bus_name)
+            voltage_drop = Network.voltage_drop(admittance_array, voltage_array, bus_index)
+            for obj1, obj2, val in zip(network_during_fault.buses, network_post_fault.buses, voltage_drop):
+                if abs(val) < abs(obj1.voltage) * 0.85:
+                    obj2.ren.clear()
+
+            # Re-calculate admittance matrix based on REN disconnection
+            network_post_fault._admittance_matrix = AdmittanceMatrix(network_post_fault.buses)
 
     def get_disconnected_buses(self, state: NetworkState):
         """

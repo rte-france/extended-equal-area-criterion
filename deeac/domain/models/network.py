@@ -761,12 +761,14 @@ class Network:
         network_post_fault = self._simplified_networks[NetworkState.POST_FAULT][0]
         voltage_array = np.array([bus.voltage for bus in network_during_fault.buses])
         admittance_array = network_during_fault.admittance_matrix.matrix.toarray()
+        generator_xd = np.array([gen.direct_transient_reactance_pu for gen in network_during_fault.generators])
+        generator_bus = np.array([network_during_fault.buses.index(gen.bus) for gen in network_during_fault.generators])
         fictive_load = [l for b in network_during_fault.buses for l in b.loads if isinstance(l, FictiveLoad)]
         if fictive_load:
             # Calculate voltage drop
             bus_name = max(fictive_load, key=lambda x: abs(x.admittance)).bus.name
             bus_index = next(i for i, obj in enumerate(network_during_fault.buses) if obj.name == bus_name)
-            voltage_drop = Network.voltage_drop(admittance_array, voltage_array, bus_index)
+            voltage_drop = Network.voltage_drop(admittance_array, voltage_array, generator_xd, generator_bus, bus_index)
             for obj1, obj2, val in zip(network_during_fault.buses, network_post_fault.buses, voltage_drop):
                 if abs(val) < abs(obj1.voltage) * 0.85:
                     obj2.ren.clear()
@@ -947,20 +949,25 @@ class Network:
         return SimplifiedNetwork(buses=network_buses_short), disconnected_buses
 
     @staticmethod
-    def voltage_drop(admittance, voltage, bus):
+    def voltage_drop(admittance, voltage, gen_xd, gen_bus, bus_index):
         """
-        Compute voltage drop on fault.
+        Compute voltage drop on fault on each bus.
 
         :param admittance: bus admittance matrix (nxn array).
         :param voltage: bus pre-fault voltage (n array).
-        :param bus: nearest bus from fault (integer).
+        :param gen_xd: generators transient direct-axis reactance (list)
+        :param gen_bus: generators bus indices (list)
+        :param bus_index: nearest bus from fault (integer).
         """
-        impedance = np.linalg.inv(admittance)
-        fault_current = voltage[bus] / impedance[bus, bus]
-        # Injection (all buses except fault = 0)
-        injection = np.zeros(len(voltage), dtype=complex)
-        injection[bus] = fault_current
-        return voltage - impedance @ injection
+        Y_bus = admittance.copy()
+        #add to admittance the contribution of each generator
+        np.add.at(Y_bus, (gen_bus, gen_bus), 1 / (1j * gen_xd))
+        #impedance
+        Z_bus = np.linalg.inv(Y_bus)
+        #Thevenin impedance seen from bus fault
+        Z_ff = Z_bus[bus_index, bus_index]
+
+        return voltage - (Z_bus[:, bus_index] / Z_ff) * voltage[bus_index]
 
     def _compute_generator_voltage_amplitude_product(self):
         """

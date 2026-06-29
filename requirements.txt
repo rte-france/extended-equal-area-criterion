@@ -1,0 +1,9 @@
+typing-extensions
+numpy>=2.2.0
+pandas
+networkx>=2.5.1
+scipy>=1.5.4
+matplotlib>=3.3.4
+joblib>=1.4.2
+pypowsybl>=1.13.0
+pytest

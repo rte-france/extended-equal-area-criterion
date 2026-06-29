@@ -1,0 +1,9 @@
+{
+  "line1-5": {
+    "status": "POTENTIALLY STABLE",
+    "swing_state": "BACKWARD",
+    "critical_cluster": "GEN    1",
+    "node_id": 2,
+    "CCT": 0.5002585629065064
+  }
+}

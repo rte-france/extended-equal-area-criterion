@@ -1,3 +1,8 @@
+"""
+Module for __init__.
+
+:module: __init__
+"""
 # Copyright (c) 2020-2024, RTE (http://www.rte-france.com)
 # See AUTHORS.md
 # All rights reserved.
@@ -9,8 +14,8 @@
 
 # Determine version number if it exits (i.e. if package is installed)
 try:
-    from deeac import _version
-    __version__ = _version.version
+    from deeac import __version__
+    __version__ = __version__.version
 except ImportError:
     # package is not installed
     pass

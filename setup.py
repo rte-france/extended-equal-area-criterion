@@ -9,28 +9,42 @@
 
 import os
 import sys
-from setuptools import setup, Command
+from pathlib import Path
+from setuptools import setup, Command, find_packages
 
 # Package meta-data.
 NAME = 'deeac'
 PACKAGE = 'deeac'
 DESCRIPTION = 'Implementation of DEEAC for transient stability analysis in transmission networks.'
-REQUIRES_PYTHON = '>=3.6.4'
+REQUIRES_PYTHON = '>=3.10.0'
+
+
+def read_version() -> str:
+    """
+    Read the package version from deeac/__version__.py.
+    
+    :return: Version string.
+    """
+    version_path = Path(__file__).resolve().parent / PACKAGE / "__version__.py"
+    namespace = {}
+    exec(version_path.read_text(encoding="utf-8"), namespace)
+    return namespace["__version__"]
 
 # What packages are required for this module to be executed?
 REQUIRED = [
-    "pydantic==1.10.21",
     "typing_extensions",
-    "numpy==1.24.4",
+    "numpy>=2.2.0",
+    "pandas",
     "networkx>=2.5.1",
     "scipy>=1.5.4",
     "matplotlib>=3.3.4",
-    "joblib>=1.4.2"
+    "joblib>=1.4.2",
+    "pypowsybl>=1.13.0"
 ]
 
 EXTRA_REQUIRED = {
     "tests": [
-        "pytest==6.2.5"
+        "pytest>=6.2.5"
     ]
 }
 
@@ -68,28 +82,44 @@ class UploadCommand(Command):
 
 setup(
     name=NAME,
+    version=read_version(),
     description=DESCRIPTION,
-    packages=[PACKAGE],
+    long_description=Path("README.md").read_text(encoding="utf-8"),
+    long_description_content_type="text/markdown",
+    packages=find_packages(
+        exclude=(
+            "tests",
+            "tests_private",
+            "trunk",
+            "venv311",
+            "venv312",
+            "build",
+            "dist",
+            "examples",
+            "docs",
+        )
+    ),
     python_requires=REQUIRES_PYTHON,
     install_requires=REQUIRED,
     extras_require=EXTRA_REQUIRED,
     include_package_data=True,
     zip_safe=False,
-    license='Proprietary',
+    license='MPL-2.0',
+    entry_points={
+        "console_scripts": [
+            "deeac=deeac.main:run",
+        ]
+    },
     classifiers=[
-        # Trove classifiers
-        'License :: Other/Proprietary License',
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.7'
+        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
+        'Programming Language :: Python :: 3.12'
     ],
     cmdclass={
         'upload': UploadCommand,
-    },
-    # Configure package versioning from source code management tool (i.e. git).
-    use_scm_version={
-        'local_scheme': lambda *_: "",  # do not prepend dirty-related tag to version
-        'write_to': os.path.join('./', PACKAGE.replace(".", "/"), "_version.py")
-    },
-    setup_requires=['setuptools_scm']
+    }
 )

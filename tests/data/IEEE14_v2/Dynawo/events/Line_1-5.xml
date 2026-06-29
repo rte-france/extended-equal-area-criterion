@@ -1,0 +1,13 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<parameters>
+  <par type="STR" name="fault_type" value="LineFault"/>
+  <par type="STR" name="staticId" value="_BUS____1-BUS____5-1_AC"/>
+  <par type="STR" name="terminal1" value="_BUS____1_TN"/>
+  <par type="STR" name="terminal2" value="_BUS____5_TN"/>
+  <par type="DOUBLE" name="r_fault" value="0"/>
+  <par type="DOUBLE" name="x_fault" value="0"/>
+  <par type="DOUBLE" name="t_begin" value="10"/>
+  <par type="DOUBLE" name="t_end" value="10.1"/>
+  <par type="DOUBLE" name="d_terminal1" value="0.01"/>
+</parameters>
+

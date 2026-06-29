@@ -1,0 +1,9 @@
+2026-04-22 16:31:38 | INFO |  ============================================================ 
+2026-04-22 16:31:38 | INFO | DYNAWO VERSION  :     1.7.0
+2026-04-22 16:31:38 | INFO | DYNAWO REVISION :      HEAD-6211f2e
+2026-04-22 16:31:38 | INFO |  ============================================================ 
+2026-04-22 16:31:38 | INFO | 
+2026-04-22 16:31:38 | INFO | -----------------------------------------------------------------------
+2026-04-22 16:31:38 | INFO | building model from input files
+2026-04-22 16:31:38 | INFO | -----------------------------------------------------------------------
+2026-04-22 16:31:38 | ERROR | impossible to connect two elements : element 1 (id omega_grp_0_value: name :omega_grp_0_value) not found in model :GEN____1_SM ( GeneratorSynchronousFourWindingsProportionalRegulations ) element :generator_omegaPu impossible connection ( DYNModelMulti.cpp:764 )

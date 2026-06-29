@@ -1,0 +1,21 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!--
+    Copyright (c) 2025, RTE (http://www.rte-france.com)
+    See AUTHORS.txt
+    All rights reserved.
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, you can obtain one at http://mozilla.org/MPL/2.0/.
+    SPDX-License-Identifier: MPL-2.0
+
+    This file is part of Dynawo, a hybrid C++/Modelica open source suite of
+    simulation tools for power systems.
+-->
+<dyn:dynamicModelsArchitecture xmlns="http://www.rte-france.com/dynawo">
+  <dyn:blackBoxModel id="DISCONNECT_LINE" lib="EventConnectedStatus" parFile="IEEE14_PAR_Line_1-2.xml" parId="9"/>
+  <dyn:connect id1="DISCONNECT_LINE" var1="event_state1_value" id2="Line1_2" var2="line_switchOffSignal1_value"/>
+  <dyn:blackBoxModel id="Line1_2" lib="LineFault" parFile="IEEE14_PAR_Line_1-2.xml" parId="10" staticId="_BUS____1-BUS____2-1_AC"/>
+  <dyn:connect id1="Line1_2" var1="line_terminal1" id2="NETWORK" var2="_BUS____1_TN_ACPIN"/>
+  <dyn:connect id1="Line1_2" var1="line_terminal2" id2="NETWORK" var2="_BUS____2_TN_ACPIN"/>
+</dyn:dynamicModelsArchitecture>
+

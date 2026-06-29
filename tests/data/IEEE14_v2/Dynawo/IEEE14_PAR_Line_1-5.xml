@@ -1,0 +1,28 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!--
+    Copyright (c) 2025, RTE (http://www.rte-france.com)
+    See AUTHORS.txt
+    All rights reserved.
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, you can obtain one at http://mozilla.org/MPL/2.0/.
+    SPDX-License-Identifier: MPL-2.0
+
+    This file is part of Dynawo, a hybrid C++/Modelica open source suite of
+    simulation tools for power systems.
+-->
+<parametersSet xmlns="http://www.rte-france.com/dynawo">
+  <set id="9">
+    <par type="DOUBLE" name="event_tEvent" value="10.1"/>
+    <par type="BOOL" name="event_stateEvent1" value="true"/>
+    <par type="BOOL" name="event_disconnectExtremity" value="true"/>
+  </set>
+  <set id="10">    
+    <par type="DOUBLE" name="line_RFaultPu" value="0"/>
+    <par type="DOUBLE" name="line_XFaultPu" value="0"/>
+    <par type="DOUBLE" name="line_tBegin" value="10"/>
+    <par type="DOUBLE" name="line_tEnd" value="10.1"/>
+    <par type="DOUBLE" name="line_D" value="0.01"/>
+  </set>
+</parametersSet>
+

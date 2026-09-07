@@ -4,8 +4,6 @@ DEEAC runs a fast transient stability analysis based on the Extended Equal Area 
 It reads Eurostag network data and fault events, identifies critical generator clusters, builds an
 OMIB equivalent, and computes critical clearing times for each fault.
 
-This repository expects **non-public data** (Eurostag cases). Do not publish sample data here.
-
 <p align="center">
 <img src="docs/pics/eeac_logo.png" width="500">
 </p>

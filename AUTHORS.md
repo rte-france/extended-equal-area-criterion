@@ -1,4 +1,21 @@
-Pierre Stevenin
-Rèmy Clement
+# AUTHORS
+
+## Contributors from Haulogy
+
+Alireza Bahmanyar  
+Yves Vanaubel  
+Gautier Dekeyne  
+Laurine Duchesne  
+Damien Ernst  
+Quentin Gemine   
+
+## Contributors from RTE
+
+Camille Pache  
+Remy Clement  
+Patrick Panciatici 
+
+## Contributors from eRoots
+
 Santiago Peñate Vera
 Carlos Alegre Aldeano

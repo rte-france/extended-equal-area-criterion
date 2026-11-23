@@ -17,6 +17,7 @@ from typing import Optional
 from deeac.IO.arguments_parser import DynawoRunConfiguration
 from deeac.IO.dynawo.dynawo_parser import DynawoMultiFileParser
 from deeac.Models.network import Network
+from deeac.enums import HvdcElectricalModel
 
 
 def parse_dynawo(
@@ -25,6 +26,7 @@ def parse_dynawo(
     dyd_file: Optional[str],
     par_file: Optional[str],
     dotted_generator_inertia_multiplier: float = 1.0,
+    hvdc_model: HvdcElectricalModel = HvdcElectricalModel.LOAD,
 ) -> Network:
     """
     Parse a Dynawo case into a DEEAC network.
@@ -40,6 +42,7 @@ def parse_dynawo(
     :param par_file: Optional PAR file path used in manual mode.
     :param dotted_generator_inertia_multiplier: Multiplier applied during
         Dynawo parsing to generators whose IIDM id starts with ``.``.
+    :param hvdc_model: Electrical model assigned to HVDC converters.
     :return: Parsed network with Dynawo fault events attached.
     """
     parser = DynawoMultiFileParser(
@@ -48,6 +51,7 @@ def parse_dynawo(
         dyd_file=dyd_file,
         par_file=par_file,
         dotted_generator_inertia_multiplier=dotted_generator_inertia_multiplier,
+        hvdc_model=hvdc_model,
     )
     return parser.parse()
 
@@ -65,4 +69,5 @@ def parse_dynawo_configuration(config: DynawoRunConfiguration) -> Network:
         dyd_file=config.dynawo_dyd_file,
         par_file=config.dynawo_par_file,
         dotted_generator_inertia_multiplier=config.dynawo_dotted_generator_inertia_multiplier,
+        hvdc_model=config.hvdc_model,
     )

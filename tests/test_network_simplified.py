@@ -2,7 +2,7 @@
 Tests for simplified network creation using a small synthetic network.
 """
 from deeac.Models.bus import Bus
-from deeac.Models.generator import Generator
+from deeac.Models.generator import SynchronousGenerator
 from deeac.Models.line import Line
 from deeac.Models.network import Network, NetworkComputed
 from deeac.Models.constants import BASE_POWER
@@ -52,7 +52,7 @@ def build_simple_network() -> Network:
     )
     network.add_branch(bus_b, bus_c, line_bc, "1")
 
-    generator = Generator(
+    generator = SynchronousGenerator(
         name="G1",
         bus=bus_a,
         tpe=GeneratorType.SLACK,

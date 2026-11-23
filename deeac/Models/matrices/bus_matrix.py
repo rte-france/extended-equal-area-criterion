@@ -3,6 +3,7 @@ Module for bus_matrix.
 
 :module: bus_matrix
 """
+import numpy as np
 # Copyright (c) 2020-2024, RTE (http://www.rte-france.com)
 # See AUTHORS.md
 # All rights reserved.
@@ -30,7 +31,7 @@ class BusMatrix:
     :ivar bus_indexes: bus indexes.
     """
 
-    def __init__(self, matrix: array, bus_indexes: Dict[str, int]):
+    def __init__(self, matrix: np.matrix, bus_indexes: Dict[str, int]):
         """
         Initialize the matrix.
         
@@ -53,7 +54,7 @@ class BusMatrix:
         return set(self._bus_indexes.keys())
 
     @property
-    def matrix(self) -> array:
+    def matrix(self) -> np.matrix:
         """
         Return the array containing the values of the matrix.
         

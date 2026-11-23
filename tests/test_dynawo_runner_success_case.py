@@ -1,78 +1,69 @@
-"""
-End-to-end execution test for a known-good Dynawo input case.
-"""
+"""End-to-end execution test for a known-good Dynawo input case."""
 
-import os
+import re
 import shutil
+import subprocess
+from pathlib import Path
+from typing import Optional
 
 import pytest
 
-from deeac.DynawoPostProcess.runner import DynawoRunner
+from deeac.DynawoPostProcess.runner import DynawoProcessResult, DynawoRunner
 
 
-def get_repo_root_dir() -> str:
+def test_dynawo_runner_executes_success_case(tmp_path: Path) -> None:
+    """Exercise the runner with the repository's optional Dynawo 1.7 install.
+
+    :param tmp_path: Temporary directory for the case and its outputs.
+    :return: None.
     """
-    Return repository root directory.
-
-    :return: Repository root directory.
-    """
-    tests_dir: str = os.path.dirname(__file__)
-    repo_root_dir: str = os.path.abspath(os.path.join(tests_dir, ".."))
-    return repo_root_dir
-
-
-def get_dynawo_install_dir() -> str:
-    """
-    Return local vanilla Dynawo install directory.
-
-    :return: Dynawo install directory.
-    """
-    repo_root_dir: str = get_repo_root_dir()
-    install_dir: str = os.path.join(repo_root_dir, "Dynawo_Linux_v1.7.0", "dynawo")
-    return install_dir
-
-
-def get_success_case_inputs_dir() -> str:
-    """
-    Return copied known-good Dynawo case fixture directory.
-
-    :return: Fixture input directory.
-    """
-    tests_dir: str = os.path.dirname(__file__)
-    inputs_dir: str = os.path.join(tests_dir, "data", "dynawo_success_case", "inputs")
-    return inputs_dir
-
-
-def test_dynawo_runner_executes_success_case_and_stores_outputs() -> None:
-    """
-    Execute a known-good Dynawo case and verify generated output artifacts.
-
-    :return: Return value.
-    """
-    install_dir: str = get_dynawo_install_dir()
-    if os.path.isdir(install_dir):
-        pass
-    else:
-        pytest.skip(f"Dynawo install directory not found: {install_dir}")
-
-    inputs_dir: str = get_success_case_inputs_dir()
-    jobs_path: str = os.path.join(inputs_dir, "IEEE14.jobs")
-
-    # The fixture stores outputs alongside jobs; remove previous run outputs for deterministic checks.
-    outputs_dir: str = os.path.join(inputs_dir, "outputs")
-    if os.path.isdir(outputs_dir):
-        shutil.rmtree(outputs_dir)
+    install_dir: Path = Path(__file__).resolve().parent.parent / "Dynawo_Linux_v1.7.0" / "dynawo"
+    if not install_dir.is_dir():
+        pytest.skip("Dynawo 1.7 runner fixture installation not found")
     else:
         pass
-
-    runner = DynawoRunner(
-        dynawo_binary_path=None,
-        dynawo_install_dir=install_dir,
-        dynawo_binary_options=None,
-    )
-    result = runner.run_jobs_file(jobs_file=jobs_path, timeout_seconds=120.0)
-
+    case_dir: Path = tmp_path / "case"
+    shutil.copytree(Path(__file__).parent / "data" / "dynawo_success_case" / "inputs", case_dir,
+                    ignore=shutil.ignore_patterns("outputs"))
+    runner: DynawoRunner = DynawoRunner(dynawo_install_dir=str(install_dir))
+    result: DynawoProcessResult = runner.run_jobs_file(str(case_dir / "IEEE14.jobs"), timeout_seconds=120.0)
     assert result.return_code == 0, result.stderr
-    assert os.path.isdir(outputs_dir)
-    assert os.path.isfile(os.path.join(outputs_dir, "logs", "dynawo.log"))
-    assert os.path.isfile(os.path.join(outputs_dir, "curves", "curves.csv"))
+    assert (case_dir / "outputs" / "logs" / "dynawo.log").is_file()
+    assert (case_dir / "outputs" / "curves" / "curves.csv").is_file()
+
+
+def test_dynawo_executes_success_case_and_stores_outputs(tmp_path: Path) -> None:
+    """Run the fixture when the Dynawo launcher is available on PATH.
+
+    :param tmp_path: Temporary directory for the case and its outputs.
+    :return: None.
+    """
+    dynawo: Optional[str] = shutil.which("dynawo")
+    if dynawo is None:
+        pytest.skip("Dynawo launcher not found on PATH")
+    else:
+        pass
+
+    inputs_dir: Path = Path(__file__).parent / "data" / "dynawo_success_case" / "inputs"
+    case_dir: Path = tmp_path / "case"
+    shutil.copytree(inputs_dir, case_dir, ignore=shutil.ignore_patterns("outputs"))
+
+    version: subprocess.CompletedProcess[str] = subprocess.run(
+        [dynawo, "version"], capture_output=True, text=True, timeout=30, check=True,
+    )
+    if version.stdout.strip().startswith("1.8."):
+        # Dynawo 1.8 renamed indexed OmegaRef connections from the 1.7 fixture.
+        dyd_file: Path = case_dir / "IEEE14.dyd"
+        dyd_text: str = dyd_file.read_text(encoding="utf-8")
+        dyd_text = re.sub(r'(var1="(?:omega_grp|omegaRef_grp|numcc_node|running_grp)_\d+)(")',
+                          r'\1_\2', dyd_text)
+        dyd_file.write_text(dyd_text, encoding="utf-8")
+    else:
+        pass
+
+    result: subprocess.CompletedProcess[str] = subprocess.run(
+        [dynawo, "jobs", str(case_dir / "IEEE14.jobs")], capture_output=True, text=True, timeout=120,
+    )
+    assert result.returncode == 0, result.stderr
+    assert (case_dir / "outputs" / "logs" / "dynawo.log").is_file()
+    assert (case_dir / "outputs" / "curves" / "curves.csv").is_file()

@@ -20,6 +20,8 @@ import shutil
 from datetime import datetime
 from joblib import Parallel, delayed
 
+from deeac.enums import GeneratorElectricalModel
+
 try:
     from deeac.IO.dynawo.parse_dynawo import parse_dynawo_configuration
     _DYNAWO_PARSE_AVAILABLE = True
@@ -329,9 +331,10 @@ def _load_network_from_config(
             ech_file=config.ech_file,
             dta_file=config.dta_file,
             lf_file=config.lf_file,
-            seq_file=config.seq_file,
             seq_files=config.seq_files,
             protection_delay=config.protection_delay,
+            ren_model=config.ren_model,
+            hvdc_model=config.hvdc_model,
         )
     elif isinstance(config, DynawoRunConfiguration):
         logger.info("Loading Dynawo case")
@@ -413,6 +416,8 @@ def deeac_run(config: Union[EurostagRunConfiguration, DynawoRunConfiguration]) -
         logger.error("EEAC cannot be applied on a network without any generator.")
         logger.print_if_verbose()
         sys.exit(-1)
+
+    # network.hvdc_map["HVDC1"].electrical_model = GeneratorElectricalModel.CURRENT
 
     output_dirs = build_output_dirs(config.output_dir, network.fault_events)
     if len(network.fault_events) == 1:

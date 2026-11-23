@@ -8,7 +8,8 @@ This repository expects **non-public data** (Eurostag cases). Do not publish sam
 
 ## Requirements
 
-- Python 3.10+
+- Python 3.10 (the supported version for this repository)
+- `pypowsybl>=1.13`, installed by the package, for Dynawo/IIDM parsing
 - Eurostag inputs:
   - `.ech` (topology)
   - `.dta` (dynamic generator data)
@@ -21,11 +22,19 @@ This repository expects **non-public data** (Eurostag cases). Do not publish sam
 
 ## Install
 
-Editable install:
+Create and use a Python 3.10 virtual environment, then install DEEAC in
+editable mode:
 
 ```bash
-pip install -e .
+python3.10 -m venv .venv310
+.venv310/bin/python -m pip install --upgrade pip
+.venv310/bin/python -m pip install -e ".[tests]"
 ```
+
+Use `.venv310/bin/python` for the examples and tests below. The install also
+adds `.venv310/bin/deeac`; omit `.[tests]` when pytest is not needed. Dynawo
+itself is only needed to run the generated Dynawo cases; EEAC parsing and case
+preparation do not invoke the Dynawo executable.
 
 If `tkinter` is missing, install the system Tk package before running the GUI.
 This is especially common when using the system Python on Ubuntu.
@@ -59,12 +68,67 @@ Build a wheel:
 python -m build
 ```
 
+## Docker operation
+
+The Docker image is meant for the CLI workflow. It packages the `deeac/`
+source tree and install metadata, then runs `deeac` as the container entrypoint.
+
+Build the image from the repository root:
+
+```bash
+docker build -t deeac .
+```
+
+Confirm the container starts and the CLI is available:
+
+```bash
+docker run --rm deeac --help
+```
+
+Run a Eurostag case by mounting a local case directory into `/work/case`:
+
+```bash
+docker run --rm \
+  -v "$PWD/examples/eurostag_cases/case_1---basecase:/work/case" \
+  deeac \
+  -e /work/case/fech.ech \
+  -d /work/case/fdta.dta \
+  -l /work/case/fech.lf \
+  -s /work/case/B-C_fault.seq \
+  -t /work/case/branch_1.json \
+  -o /work/case/docker_output \
+  -r
+```
+
+Expected mounted inputs:
+
+- `fech.ech`
+- `fdta.dta`
+- `fech.lf`
+- one or more `.seq` files
+- one EEAC execution plan JSON such as `branch_1.json`
+
+The output folder is written inside the mounted directory, so results remain on
+the host after the container exits.
+
+You can also run with a global configuration file:
+
+```bash
+docker run --rm \
+  -v "$PWD/examples/eurostag_cases/case_1---basecase:/work/case" \
+  deeac \
+  -g /work/case/global_config.json
+```
+
+The Docker build context intentionally excludes everything except `setup.py`,
+`README.md`, and the `deeac/` source tree.
+
 ## Quick start
 
 Run with a global configuration JSON:
 
 ```bash
-deeac -g /path/to/config.json
+.venv310/bin/deeac -g /path/to/config.json
 ```
 
 ## Eurostag inputs
@@ -131,7 +195,9 @@ Dynawo example:
 Notes:
 - Preferred Dynawo configuration uses `dynawo-jobs-file` or `jobs-file`.
 - Manual fallback is still supported through `iidm-file`, `dynawo-dyd-file`, and `dynawo-par-file`.
-- Dynawo fault events are discovered from the Dynawo dynamic files rather than from Eurostag-style `.seq` files.
+- Keep the Dynawo base case fault-free during EEAC. Supply fault scenarios as
+  separate JSON files to the Dynawo workflow, then generate Dynawo-ready cases
+  only for the selected EEAC results.
 
 ## CLI options (summary)
 
@@ -184,6 +250,183 @@ network = parse_dynawo(
     dynawo_par_file=None,
 )
 ```
+
+Run EEAC from an external Dynawo fault JSON file (or a folder of JSON files):
+
+```python
+from deeac.IO.arguments_parser import DynawoRunConfiguration
+from deeac.workflows import run_dynawo_simulation_workflow
+
+config = DynawoRunConfiguration(
+    jobs_file="/path/to/IEEE14.jobs",
+    iidm_file=None,
+    dynawo_dyd_file=None,
+    dynawo_par_file=None,
+    dynawo_dyn_file=None,
+    execution_tree_file="/path/to/branch_1.json",
+    execution_tree=None,
+    island_threshold=0.0,
+    cores=1,
+    protection_delay=0.0,
+    verbose=False,
+    output_dir="/path/to/eeac_output",
+    json_path=None,
+    rewrite=True,
+    warn=False,
+)
+results, case_directories = run_dynawo_simulation_workflow(
+    config=config,
+    fault_files="/path/to/faults",
+    jobs_file="/path/to/IEEE14.jobs",
+    generation_dir="/path/to/generated_dynawo_cases",
+)
+```
+
+## Operating the new workflows
+
+The normal command-line workflow is Eurostag. The two workflows below are the
+new customer-facing paths and are deliberately Python APIs: they keep the
+Dynawo source case fault-free while EEAC evaluates independent scenarios.
+
+```mermaid
+flowchart LR
+    E[Eurostag .ech/.dta/.lf + .seq] --> A[EEAC]
+    D[Fault-free Dynawo .jobs case] --> G[Generate selected Dynawo cases]
+    A --> G
+    G --> C[One runnable case per fault]
+```
+
+```mermaid
+flowchart LR
+    D[Fault-free Dynawo .jobs case] --> A[EEAC]
+    F[One fault JSON or folder] --> A
+    A --> G[Generate selected Dynawo cases]
+    D --> G
+    G --> C[One runnable case per fault]
+```
+
+### 1. Eurostag EEAC, then Dynawo cases
+
+Use this when the faults already exist as Eurostag `.seq` files. DEEAC runs
+EEAC from the Eurostag network, maps the selected line faults to the Dynawo
+IIDM case, and creates the Dynawo cases. Do not create a second JSON fault
+catalogue for this workflow.
+
+```python
+from deeac.IO.arguments_parser import EurostagRunConfiguration
+from deeac.workflows import run_eurostag_to_dynawo_workflow
+
+config = EurostagRunConfiguration(
+    ech_file="case/fech.ech", dta_file="case/fdta.dta", lf_file="case/fech.lf",
+    execution_tree_file="case/branch_1.json", execution_tree=None,
+    seq_file=None, seq_file_folder="case/faults",
+    seq_files=["case/faults/fault_1.seq", "case/faults/fault_2.seq"],
+    island_threshold=0.0, cores=1, protection_delay=0.0, verbose=False,
+    output_dir="eeac_results", json_path=None, rewrite=True, warn=False,
+)
+results, generated_cases = run_eurostag_to_dynawo_workflow(
+    config=config,
+    dynawo_jobs_file="dynawo/IEEE14_JOBS.xml",
+    generation_dir="generated_dynawo_cases",
+)
+```
+
+Pass `selected_fault_ids=[...]` to generate only selected EEAC results. With
+the default settings, every selected fault gets an independent copied Dynawo
+case folder.
+
+### 2. Dynawo EEAC from external fault JSON
+
+Use this when the network comes from Dynawo and the scenarios are supplied as
+separate JSON files. `fault_files` accepts one JSON file, a directory of JSON
+files, or an explicit list. Every JSON file is one scenario. The base IIDM,
+DYD, PAR, and JOBS files are read during EEAC and are not modified.
+
+```python
+from deeac.IO.arguments_parser import DynawoRunConfiguration
+from deeac.workflows import run_dynawo_simulation_workflow
+
+config = DynawoRunConfiguration(
+    jobs_file="dynawo/IEEE14_JOBS.xml", iidm_file=None,
+    dynawo_dyd_file=None, dynawo_par_file=None, dynawo_dyn_file=None,
+    execution_tree_file="case/branch_1.json", execution_tree=None,
+    island_threshold=0.0, cores=1, protection_delay=0.0, verbose=False,
+    output_dir="eeac_results", json_path=None, rewrite=True, warn=False,
+)
+results, generated_cases = run_dynawo_simulation_workflow(
+    config=config,
+    fault_files="faults",
+    jobs_file="dynawo/IEEE14_JOBS.xml",
+    generation_dir="generated_dynawo_cases",
+)
+```
+
+The generation directory must be outside the source Dynawo case directory.
+`selected_fault_ids=None` generates all analyzed faults; pass a list to select
+only those IDs.
+
+### Fault JSON
+
+This is a complete line-fault example. `static_id` and terminal IDs are used
+when generating Dynawo files; the bus names and parallel ID are used by EEAC.
+
+```json
+{
+  "fault_id": "line_1_2",
+  "fault_type": "line",
+  "target": {
+    "first_bus": "BUS_1", "second_bus": "BUS_2", "parallel_id": "1",
+    "static_id": "LINE_1_2", "terminal_1": "BUS_1_TN", "terminal_2": "BUS_2_TN"
+  },
+  "impedance": {"r": 0.0, "x": 0.0},
+  "start_time": 1.0,
+  "end_time": 1.1,
+  "distance": 0.5,
+  "disconnection_time": 1.1
+}
+```
+
+For a line fault, `distance` is strictly between 0 and 1 and EEAC currently
+requires zero impedance. A node or transformer fault uses `fault_type` `node`
+or `transformer` and a target with `bus`, `static_id`, and `terminal_1`.
+Transformer targets additionally use `transformer_id`. Use either a common
+`disconnection_time`, which derives the trips from IIDM topology, or an
+explicit `disconnections` list. Explicit extra trips need `static_id` and
+`time`; line trips also need `first_bus`, `second_bus`, and `parallel_id` for
+EEAC.
+
+### Generated Dynawo cases
+
+The default is one copied source-case folder per selected scenario, with a
+patched DYD/PAR pair and, when required, IIDM. Line, node, and transformer
+faults are supported. Set `line_fault_model_available=False` when the target
+Dynawo installation has no `LineFault`: DEEAC splits the copied IIDM line at
+the fault point and writes a `NodeFault` at the fictitious bus. Set
+`use_multiple_jobs=True` only for a Dynawo setup that supports `.multiple`;
+it produces one copied base case with a DYD/PAR pair per scenario and a
+dispatcher file. Multiple fallback faults on the same original line are not
+supported in that mode.
+
+IIDM node-breaker networks are parsed through their busbar sections, so the
+same Dynawo workflow also accepts node-breaker cases. The fault target must
+use the EEAC busbar-section name resolved from that IIDM network.
+
+## Verification
+
+Run the focused workflow and node-breaker checks with:
+
+```bash
+.venv310/bin/python -m pytest \
+  tests/test_workflows_ieee14_v2.py \
+  tests_private/test_dynawo_node_breaker_france.py -q
+```
+
+`tests/test_workflows_ieee14_v2.py` covers the Eurostag-to-Dynawo workflow
+without a plan JSON, a Dynawo JSON fault folder, the line-fault fallback,
+multiple-jobs generation, line JSON parsing, and node/transformer case
+generation. `tests_private/test_dynawo_node_breaker_france.py` parses the RTE
+France IIDM fixture and verifies that node-breaker busbar sections are exposed
+as EEAC buses.
 
 Using `deeac_eurostag` with an explicit configuration object:
 

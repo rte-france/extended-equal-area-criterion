@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from deeac.Models.load import Load
     from deeac.Models.capacitor_bank import CapacitorBank
     from deeac.Models.branch import Branch
-    from deeac.Models.generator import Generator
+    from deeac.Models.generator import PowerElectronicsGenerator, SynchronousGenerator
 
 
 
@@ -59,6 +59,7 @@ class Bus:
         self.name = name
         self.branches = set()
         self.generators = set()
+        self.power_electronics_generators = set()
         self.loads = set()
         self.capacitor_banks = set()
         self.base_voltage = base_voltage
@@ -77,12 +78,14 @@ class Bus:
         :return: Return value.
         """
         generators = ")(".join([repr(gen) for gen in self.generators])
+        power_electronics_generators = ")(".join([repr(gen) for gen in self.power_electronics_generators])
         loads = ")(".join([repr(load) for load in self.loads])
         capacitor_banks = ")(".join([repr(bank) for bank in self.capacitor_banks])
         branches = ")(".join([repr(branch) for branch in self.branches])
         return (
             f"Bus: Name=[{self.name}] Type=[{self.type.name}] |Vb|=[{self.base_voltage}] "
             f"|V|=[{self.voltage_magnitude}] \u03C6=[{self.phase_angle}] Generators=[({generators})] "
+            f"PowerElectronicsGenerators=[({power_electronics_generators})] "
             f"Loads=[({loads})] Capacitor banks=[({capacitor_banks})] Branches=[({branches})]"
         )
 
@@ -109,6 +112,9 @@ class Bus:
         for generator in self.generators:
             # Update internal voltage of all connected generators
             generator.compute_internal_voltage()
+        for generator in self.power_electronics_generators:
+            # Update static current/admittance of all converter-connected generators.
+            generator.refresh_electrical_representation()
         for load in self.loads:
             # Update admittance of all connected loads
             load.compute_admittance()
@@ -182,15 +188,30 @@ class Bus:
             # Check if a generator is regulating
             if generator.tpe == GeneratorType.PV:
                 tpe = BusType.PV
+        for generator in self.power_electronics_generators:
+            if generator.tpe == GeneratorType.SLACK:
+                return BusType.SLACK
+            else:
+                if generator.tpe == GeneratorType.PV:
+                    tpe = BusType.PV
         return tpe
 
-    def add_generator(self, generator: Generator):
+    def add_generator(self, generator: "SynchronousGenerator") -> None:
         """
         Add a generator to this bus.
         
         :param generator: Generator to add.
         """
         self.generators.add(generator)
+
+    def add_power_electronics_generator(self, generator: "PowerElectronicsGenerator") -> None:
+        """
+        Add a converter-based generator to this bus.
+
+        :param generator: Power-electronics generator to add.
+        :return: Return value.
+        """
+        self.power_electronics_generators.add(generator)
 
     def add_load(self, load: 'Load'):
         """
@@ -259,6 +280,9 @@ class Bus:
         for generator in bus.generators:
             generator.bus = self
             self.generators.add(generator)
+        for generator in bus.power_electronics_generators:
+            generator.bus = self
+            self.power_electronics_generators.add(generator)
 
         for load in bus.loads:
             load.bus = self

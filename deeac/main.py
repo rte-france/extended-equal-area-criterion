@@ -12,16 +12,50 @@ Module for __main__.
 # SPDX-License-Identifier: MPL-2.0
 # This file is part of the deeac project.
 
+import argparse
 from typing import List, Union
 import sys
 
-from deeac.GUI import run_gui
 from deeac.IO.arguments_parser import (EurostagRunConfiguration, DynawoRunConfiguration,
                                        parse_dynawo_arguments, parse_eurostag_arguments)
 from deeac.Models.events.fault_events import FaultEvents
 from deeac.Models.network import Network, NetworkComputed
 from deeac.Simulations.results import EEACResults
 from deeac.deeac_all_paths import apply_events_to_network as apply_events_to_network_impl, deeac_run
+from deeac.workflows import (run_dynawo_simulation_workflow, run_dynawo_workflow, run_eurostag_to_dynawo_workflow,
+                             run_generated_dynawo_cases)
+
+
+def parse_workflow_cli_options(argv: List[Union[str, int, float]], eurostag: bool) -> tuple[argparse.Namespace, List[str]]:
+    """Separate post-EEAC generation options from the existing engine options.
+
+    :param argv: Command-line arguments.
+    :param eurostag: Whether to accept a separate Dynawo jobs file.
+    :return: Generation options and remaining engine arguments.
+    """
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
+    parser.add_argument("--generation-dir")
+    parser.add_argument("--selected-fault", action="append")
+    parser.add_argument("--no-line-fault", action="store_true")
+    parser.add_argument("--multiple-jobs", action="store_true")
+    parser.add_argument("--dynawo-install-dir")
+    if eurostag:
+        parser.add_argument("--dynawo-jobs-file")
+    else:
+        parser.add_argument("--fault-files")
+    options: argparse.Namespace
+    remaining: List[str]
+    options, remaining = parser.parse_known_args([str(argument) for argument in argv])
+    if options.generation_dir is None and (options.selected_fault or options.no_line_fault or options.multiple_jobs
+                                           or options.dynawo_install_dir):
+        parser.error("Generation options require --generation-dir.")
+    elif eurostag and options.generation_dir is None and options.dynawo_jobs_file is not None:
+        parser.error("--dynawo-jobs-file requires --generation-dir for Eurostag runs.")
+    elif options.dynawo_install_dir is not None and options.multiple_jobs:
+        parser.error("Running a multiple-jobs dispatcher requires Dynawo Algorithms.")
+    else:
+        pass
+    return options, remaining
 
 
 def deeac_eurostag(config: EurostagRunConfiguration) -> EEACResults:
@@ -81,9 +115,30 @@ def deeac(argv: List[Union[str, int, float]]) -> EEACResults:
     -h, --help: Display help on the standard output.
     -w, --warn: warning if there's a failing critical cluster candidate
     """
-    config = parse_eurostag_arguments(argv)
-
-    return deeac_eurostag(config)
+    options, remaining = parse_workflow_cli_options(argv, eurostag=True)
+    config = parse_eurostag_arguments(remaining)
+    if options.generation_dir is not None:
+        if options.dynawo_jobs_file is None:
+            raise ValueError("--dynawo-jobs-file is required with --generation-dir.")
+        else:
+            pass
+        results, generated = run_eurostag_to_dynawo_workflow(
+            config, options.dynawo_jobs_file, options.generation_dir, options.selected_fault,
+            not options.no_line_fault, options.multiple_jobs,
+        )
+        for folder in generated:
+            print(f"Generated Dynawo case: {folder}")
+        if options.dynawo_install_dir is not None:
+            for process in run_generated_dynawo_cases(generated, options.dynawo_jobs_file, options.dynawo_install_dir):
+                if process.return_code != 0:
+                    raise RuntimeError(f"Dynawo failed: {process.stderr}")
+                else:
+                    print(process.stdout)
+        else:
+            pass
+        return results
+    else:
+        return deeac_eurostag(config)
 
 
 def deeac_dynawo_from_args(argv: List[Union[str, int, float]]) -> EEACResults:
@@ -93,8 +148,32 @@ def deeac_dynawo_from_args(argv: List[Union[str, int, float]]) -> EEACResults:
     :param argv: list of arguments.
     :return: EEAC results.
     """
-    config = parse_dynawo_arguments(argv)
-    return deeac_dynawo(config)
+    options, remaining = parse_workflow_cli_options(argv, eurostag=False)
+    config = parse_dynawo_arguments(remaining)
+    if options.generation_dir is not None:
+        if options.fault_files is None or config.jobs_file is None:
+            raise ValueError("--fault-files and --dynawo-jobs-file are required with --generation-dir.")
+        else:
+            pass
+        results, generated = run_dynawo_simulation_workflow(
+            config, options.fault_files, config.jobs_file, options.generation_dir, options.selected_fault,
+            not options.no_line_fault, options.multiple_jobs,
+        )
+        for folder in generated:
+            print(f"Generated Dynawo case: {folder}")
+        if options.dynawo_install_dir is not None:
+            for process in run_generated_dynawo_cases(generated, config.jobs_file, options.dynawo_install_dir):
+                if process.return_code != 0:
+                    raise RuntimeError(f"Dynawo failed: {process.stderr}")
+                else:
+                    print(process.stdout)
+        else:
+            pass
+        return results
+    elif options.fault_files is not None:
+        return run_dynawo_workflow(config, options.fault_files)
+    else:
+        return deeac_dynawo(config)
 
 
 def run() -> None:
@@ -105,9 +184,14 @@ def run() -> None:
     """
     args = sys.argv[1:]
 
-    if len(args) > 0:
+    if len(args) > 0 and args[0] == "dynawo":
+        deeac_dynawo_from_args(args[1:])
+    elif len(args) > 0 and args[0] == "eurostag":
+        deeac(args[1:])
+    elif len(args) > 0:
         deeac(args)
     else:
+        from deeac.GUI import run_gui
         run_gui()
 
 
@@ -128,8 +212,9 @@ if __name__ == "__main__":
     #             "-o",
     #             os.path.join(path, "testing_results"),
     #             "-v"]
+    # ----- or ----------
     # sys.argv = ["python",
     #             "-g",
-    #             "C:\\Users\\eroot\\Github\\RTE-equal-area-criterion-testing\\docs\\EEAC_Example_RTE_data\\branch_1_all_included.json",]
+    #             "branch_1_all_included.json",]
 
     run()

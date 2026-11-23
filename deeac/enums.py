@@ -462,6 +462,99 @@ class GeneratorType(Enum):
     SLACK = "SLACK"
 
 
+class GeneratorElectricalModel(Enum):
+    """
+    Generatorelectricalmodel.
+
+    Rationale:
+        This class supports the EEAC execution flow by making the electrical
+        representation of a generator explicit and refactor-safe.
+
+    :cvar SYNCHRONOUS: Classical synchronous-machine representation.
+    :cvar LOAD: Passive load-style power-electronics representation.
+    :cvar CURRENT: Ideal current-source power-electronics representation.
+    """
+    SYNCHRONOUS = "SYNCHRONOUS"
+    LOAD = "LOAD"
+    CURRENT = "CURRENT"
+
+
+class HvdcElectricalModel(Enum):
+    """
+    Hvdcelectricalmodel.
+
+    Rationale:
+        This class makes the HVDC converter representation explicit. ``LOAD``
+        preserves the historical passive load/admittance model, while
+        ``CURRENT`` enables the simple retained current-injection model.
+
+    :cvar LOAD: Passive load-style legacy HVDC representation.
+    :cvar CURRENT: Ideal current-source HVDC representation.
+    """
+    LOAD = "LOAD"
+    CURRENT = "CURRENT"
+
+
+def parse_generator_electrical_model(value: str | None) -> "GeneratorElectricalModel":
+    """
+    Parse a generator electrical model string into an explicit enum value.
+
+    :param value: Raw model string or None.
+    :return: Matching electrical model.
+    """
+    if value is None:
+        return GeneratorElectricalModel.LOAD
+
+    normalized_value: str = value.strip().upper().replace("-", "_")
+    if normalized_value == "CURRENT_SOURCE":
+        normalized_value = "CURRENT"
+    else:
+        if normalized_value == "IDEAL_CURRENT_SOURCE":
+            normalized_value = "CURRENT"
+
+    for item in GeneratorElectricalModel:
+        if item.value == normalized_value:
+            return item
+
+    try:
+        return GeneratorElectricalModel[normalized_value]
+    except KeyError as exc:
+        raise ValueError(f"Unknown generator electrical model: {value}") from exc
+
+
+def parse_hvdc_electrical_model(value: str | None) -> "HvdcElectricalModel":
+    """
+    Parse an HVDC electrical model string into an explicit enum value.
+
+    :param value: Raw model string or None.
+    :return: Matching HVDC electrical model.
+    """
+    if value is None:
+        return HvdcElectricalModel.LOAD
+    else:
+        pass
+
+    normalized_value: str = value.strip().upper().replace("-", "_")
+    if normalized_value == "CURRENT_SOURCE":
+        normalized_value = "CURRENT"
+    else:
+        if normalized_value == "IDEAL_CURRENT_SOURCE":
+            normalized_value = "CURRENT"
+        else:
+            pass
+
+    for item in HvdcElectricalModel:
+        if item.value == normalized_value:
+            return item
+        else:
+            pass
+
+    try:
+        return HvdcElectricalModel[normalized_value]
+    except KeyError as exc:
+        raise ValueError(f"Unknown HVDC electrical model: {value}") from exc
+
+
 class GeneratorSource(Enum):
     """
     Generatorsource.

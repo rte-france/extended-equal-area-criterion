@@ -1,0 +1,19 @@
+{
+  "fault_id": "line1-2",
+  "fault_type": "line",
+  "target": {
+    "first_bus": "BUS    1",
+    "second_bus": "BUS    2",
+    "parallel_id": "1",
+    "static_id": "_BUS____1-BUS____2-1_AC",
+    "terminal_1": "_BUS____1_TN",
+    "terminal_2": "_BUS____2_TN"
+  },
+  "impedance": {"r": 0.0, "x": 0.0},
+  "start_time": 10.0,
+  "end_time": 10.1,
+  "distance": 0.01,
+  "disconnections": [
+    {"first_bus": "BUS    1", "second_bus": "BUS    2", "parallel_id": "1", "time": 10.1}
+  ]
+}

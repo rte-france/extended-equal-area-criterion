@@ -16,7 +16,7 @@ from typing import Dict, List
 
 import numpy as np
 
-from deeac.Models.generator import Generator
+from deeac.Models.generator import SynchronousGenerator
 from deeac.Models.generator_snapshot import GeneratorSnapshot
 from deeac.Models.network import NetworkState
 
@@ -80,7 +80,7 @@ class GeneratorCluster:
         )
 
     @property
-    def generators(self) -> List[Generator]:
+    def generators(self) -> List[SynchronousGenerator]:
         """
         Get the set of generators in this cluster.
         

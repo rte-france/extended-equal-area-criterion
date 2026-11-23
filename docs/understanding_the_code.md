@@ -5,7 +5,7 @@ Bahmanyar, A.; Ernst, D.; Vanaubel, Y.; Gemine, Q.; Pache, C.; Panciatici, P.
 "Extended Equal Area Criterion Revisited: A Direct Method for Fast Transient Stability Analysis."
 Energies 2021, 14, 7259. https://doi.org/10.3390/en14217259
 
-The paper is summarized in `docs/paper.md` and the full PDF is in `docs/EEAC_paper.pdf`.
+The paper is summarized in `docs/paper.md`.
 
 -------------------------------------------------------------------------------
 High-level purpose

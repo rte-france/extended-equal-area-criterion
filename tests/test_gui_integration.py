@@ -12,6 +12,17 @@ import pytest
 from deeac.GUI.app import DeeacGui, DynawoRuntimeValidationResult
 
 
+def ignore_messagebox(_title: str, _message: str) -> None:
+    """
+    Ignore a Tk messagebox call in GUI tests.
+
+    :param _title: Messagebox title.
+    :param _message: Messagebox message.
+    :return: Return value.
+    """
+    return
+
+
 def _build_gui(monkeypatch: pytest.MonkeyPatch, dynawo_available: bool) -> DeeacGui:
     """
     Build a GUI instance with deterministic Dynawo runtime validation.
@@ -130,5 +141,36 @@ def test_failed_eurostag_global_config_does_not_mutate_fields(monkeypatch: pytes
         assert app._e_dta.get() == "before_dta"
         assert app._e_lf.get() == "before_lf"
         assert app._e_seq.get() == "before_seq"
+    finally:
+        app.destroy()
+
+
+def test_dynawo_patch_screen_generates_files(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """
+    Ensure the GUI Dynawo patch action writes patched DYD/PAR files.
+
+    :param monkeypatch: Pytest monkeypatch fixture.
+    :param tmp_path: Temporary directory fixture.
+    :return: Return value.
+    """
+    app = _build_gui(monkeypatch, dynawo_available=True)
+    try:
+        dynawo_dir: Path = Path(__file__).parent / "data" / "IEEE14_v2" / "Dynawo"
+        output_dir: Path = tmp_path / "patched"
+        app._patch_jobs_file.set(str(dynawo_dir / "IEEE14_JOBS.xml"))
+        app._patch_event_source.set(str(dynawo_dir / "events"))
+        app._patch_output_dir.set(str(output_dir))
+
+        monkeypatch.setattr("deeac.GUI.app.messagebox.showinfo", ignore_messagebox)
+        monkeypatch.setattr("deeac.GUI.app.messagebox.showerror", ignore_messagebox)
+
+        app.run_dynawo_file_patching()
+
+        assert (output_dir / "IEEE14_MULTIPLE.xml").exists()
+        assert (output_dir / "IEEE14_DYD_Line_1-2.xml").exists()
+        assert (output_dir / "IEEE14_PAR_Line_1-2.xml").exists()
+        assert (output_dir / "IEEE14_DYD_Line_1-5.xml").exists()
+        assert (output_dir / "IEEE14_PAR_Line_1-5.xml").exists()
+        assert app._status_var.get() == "Patched 2 Dynawo event files"
     finally:
         app.destroy()

@@ -8,6 +8,7 @@ import json
 import os
 import queue
 import threading
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import tkinter as tk
@@ -33,6 +34,10 @@ from deeac.IO.arguments_parser import (
     load_dynawo_configuration,
     load_global_configuration,
 )
+from deeac.IO.dynawo.patch_files import (
+    DynawoPatchedCaseFiles,
+    patch_dynawo_case_for_events,
+)
 try:
     from deeac.IO.dynawo.parse_dynawo import parse_dynawo_configuration
     _DYNAWO_PARSE_AVAILABLE = True
@@ -47,7 +52,7 @@ from deeac.Models.network import Network
 from deeac.Simulations.results import EEACResult, EEACResults
 from deeac.Utils.logger import Logger
 from deeac.deeac_all_paths import run_fault
-from deeac.enums import OMIBStabilityState
+from deeac.enums import HvdcElectricalModel, OMIBStabilityState, parse_hvdc_electrical_model
 
 
 class FaultSelection:
@@ -419,6 +424,10 @@ class DeeacGui(tk.Tk):
         self._active_workflow_name = "eurostag"
         self._tooltips: List[WidgetTooltip] = list()
         self._dynawo_post_run_runtime_widgets: List[tk.Widget] = list()
+        self._patch_window: Optional[tk.Toplevel] = None
+        self._patch_jobs_file = tk.StringVar()
+        self._patch_event_source = tk.StringVar()
+        self._patch_output_dir = tk.StringVar()
 
         # ----------------------
         # Root layout
@@ -469,6 +478,7 @@ class DeeacGui(tk.Tk):
         self._e_island = tk.StringVar(value="10")
         self._e_delay = tk.StringVar(value="15")
         self._e_cores = tk.StringVar(value=str(os.cpu_count() or 1))
+        self._e_hvdc_model = tk.StringVar(value=HvdcElectricalModel.LOAD.value)
         self._e_verbose = tk.BooleanVar(value=False)
         self._e_warn = tk.BooleanVar(value=False)
         self._e_generate_output_files = tk.BooleanVar(value=True)
@@ -514,6 +524,7 @@ class DeeacGui(tk.Tk):
         eurostag_row = self.add_entry_row(self._eurostag_tab, eurostag_row, "Island threshold (MW)", self._e_island)
         eurostag_row = self.add_entry_row(self._eurostag_tab, eurostag_row, "Protection delay (ms)", self._e_delay)
         eurostag_row = self.add_entry_row(self._eurostag_tab, eurostag_row, "Cores", self._e_cores)
+        eurostag_row = self.add_hvdc_model_row(self._eurostag_tab, eurostag_row, self._e_hvdc_model)
 
         eurostag_options = ttk.Frame(self._eurostag_tab)
         eurostag_options.grid(row=eurostag_row, column=0, columnspan=3, sticky="w", pady=(8, 0))
@@ -543,6 +554,7 @@ class DeeacGui(tk.Tk):
         self._d_output = tk.StringVar()
         self._d_island = tk.StringVar(value="10")
         self._d_cores = tk.StringVar(value=str(os.cpu_count() or 1))
+        self._d_hvdc_model = tk.StringVar(value=HvdcElectricalModel.LOAD.value)
         self._d_verbose = tk.BooleanVar(value=False)
         self._d_warn = tk.BooleanVar(value=False)
         self._d_generate_output_files = tk.BooleanVar(value=True)
@@ -649,6 +661,7 @@ class DeeacGui(tk.Tk):
         dynawo_row = self.add_file_row(self._dynawo_tab, dynawo_row, "Output dir", self._d_output, True)
         dynawo_row = self.add_entry_row(self._dynawo_tab, dynawo_row, "Island threshold (MW)", self._d_island)
         dynawo_row = self.add_entry_row(self._dynawo_tab, dynawo_row, "Cores", self._d_cores)
+        dynawo_row = self.add_hvdc_model_row(self._dynawo_tab, dynawo_row, self._d_hvdc_model)
 
         dynawo_options = ttk.Frame(self._dynawo_tab)
         dynawo_options.grid(row=dynawo_row, column=0, columnspan=3, sticky="w", pady=(8, 0))
@@ -779,16 +792,20 @@ class DeeacGui(tk.Tk):
             "Reset all inputs, loaded faults, results, and internal runtime state to defaults.",
         )
 
+        self._patch_button = ttk.Button(actions, text="Patch Dynawo", command=self.open_dynawo_patch_window)
+        self._patch_button.grid(row=0, column=3, padx=(6, 0))
+        self.add_tooltip(self._patch_button, "Create Dynawo fault DYD/PAR files from a SCADA base case.")
+
         self._select_all_button = ttk.Button(actions, text="Select All", command=self.select_all_faults)
-        self._select_all_button.grid(row=0, column=3, padx=(6, 0))
+        self._select_all_button.grid(row=0, column=4, padx=(6, 0))
         self.add_tooltip(self._select_all_button, "Select all loaded faults in the faults list.")
 
         self._select_none_button = ttk.Button(actions, text="Select None", command=self.select_none_faults)
-        self._select_none_button.grid(row=0, column=4, padx=(6, 0))
+        self._select_none_button.grid(row=0, column=5, padx=(6, 0))
         self.add_tooltip(self._select_none_button, "Unselect all loaded faults in the faults list.")
 
         self._run_button = ttk.Button(actions, text="Run Simulation", command=self.run_selected_faults)
-        self._run_button.grid(row=0, column=5, padx=(12, 0))
+        self._run_button.grid(row=0, column=6, padx=(12, 0))
         self.add_tooltip(self._run_button, "Run EEAC for selected faults and optional Dynawo post-run.")
 
         # ----------------------
@@ -915,6 +932,29 @@ class DeeacGui(tk.Tk):
         self.add_tooltip(entry, f"{label} value.")
         return row + 1
 
+    def add_hvdc_model_row(
+        self,
+        parent: ttk.Frame,
+        row: int,
+        variable: tk.StringVar,
+    ) -> int:
+        """
+        Add a compact HVDC model selector to a workflow tab.
+
+        :param parent: Parent frame receiving the row.
+        :param row: Grid row.
+        :param variable: Tk variable storing the selected model value.
+        :return: Next grid row.
+        """
+        values: List[str] = list()
+        for model in HvdcElectricalModel:
+            values.append(model.value)
+        ttk.Label(parent, text="HVDC model").grid(row=row, column=0, sticky="w", pady=(4, 0))
+        combo = ttk.Combobox(parent, textvariable=variable, values=values, state="readonly")
+        combo.grid(row=row, column=1, sticky="ew", padx=(8, 0), pady=(4, 0))
+        self.add_tooltip(combo, "HVDC converter electrical model.")
+        return row + 1
+
     def add_tooltip(self, widget: tk.Widget, text: str) -> None:
         """
         Attach a tooltip to a widget and keep a strong reference.
@@ -925,6 +965,210 @@ class DeeacGui(tk.Tk):
         """
         tooltip = WidgetTooltip(widget, text)
         self._tooltips.append(tooltip)
+
+    def open_dynawo_patch_window(self) -> None:
+        """
+        Open the Dynawo file-patching utility window.
+
+        :return: Return value.
+        """
+        if self._patch_window is not None and self._patch_window.winfo_exists():
+            self._patch_window.lift()
+            return
+        else:
+            pass
+
+        patch_window = tk.Toplevel(self)
+        patch_window.title("Patch Dynawo Files")
+        patch_window.minsize(720, 220)
+        patch_window.protocol("WM_DELETE_WINDOW", self.close_dynawo_patch_window)
+        self._patch_window = patch_window
+
+        patch_frame = ttk.Frame(patch_window, padding=12)
+        patch_frame.grid(row=0, column=0, sticky="nsew")
+        patch_window.rowconfigure(0, weight=1)
+        patch_window.columnconfigure(0, weight=1)
+        patch_frame.columnconfigure(1, weight=1)
+
+        patch_row: int = 0
+        info_label = ttk.Label(
+            patch_frame,
+            text="Create Dynawo DYD/PAR fault files from a SCADA/base jobs file and separate event XML files.",
+            wraplength=680,
+            justify="left",
+        )
+        info_label.grid(row=patch_row, column=0, columnspan=4, sticky="w", pady=(0, 8))
+        patch_row += 1
+
+        self.add_patch_file_row(patch_frame, patch_row, "SCADA jobs file", self._patch_jobs_file, False)
+        patch_row += 1
+
+        ttk.Label(patch_frame, text="Event XML or folder").grid(row=patch_row, column=0, sticky="w", pady=(4, 0))
+        event_entry = ttk.Entry(patch_frame, textvariable=self._patch_event_source)
+        event_entry.grid(row=patch_row, column=1, sticky="ew", padx=(8, 0), pady=(4, 0))
+        self.add_tooltip(event_entry, "Known Dynawo event XML file, or a folder containing event XML files.")
+        event_file_button = ttk.Button(
+            patch_frame,
+            text="File",
+            command=BrowseVariableCommand(self, self._patch_event_source, False),
+        )
+        event_file_button.grid(row=patch_row, column=2, padx=(6, 0), pady=(4, 0))
+        self.add_tooltip(event_file_button, "Browse for one Dynawo event XML file.")
+        event_folder_button = ttk.Button(
+            patch_frame,
+            text="Folder",
+            command=BrowseVariableCommand(self, self._patch_event_source, True),
+        )
+        event_folder_button.grid(row=patch_row, column=3, padx=(6, 0), pady=(4, 0))
+        self.add_tooltip(event_folder_button, "Browse for a folder containing Dynawo event XML files.")
+        patch_row += 1
+
+        self.add_patch_file_row(patch_frame, patch_row, "Output dir", self._patch_output_dir, True)
+        patch_row += 1
+
+        action_frame = ttk.Frame(patch_frame)
+        action_frame.grid(row=patch_row, column=0, columnspan=4, sticky="e", pady=(12, 0))
+        close_button = ttk.Button(action_frame, text="Close", command=self.close_dynawo_patch_window)
+        close_button.grid(row=0, column=0, padx=(0, 6))
+        patch_button = ttk.Button(action_frame, text="Patch Files", command=self.run_dynawo_file_patching)
+        patch_button.grid(row=0, column=1)
+
+    def add_patch_file_row(
+        self,
+        parent: ttk.Frame,
+        row: int,
+        label: str,
+        variable: tk.StringVar,
+        browse_folder: bool,
+    ) -> None:
+        """
+        Add one file or folder row to the Dynawo patching utility.
+
+        :param parent: Parent frame.
+        :param row: Grid row.
+        :param label: Field label.
+        :param variable: Variable storing the selected path.
+        :param browse_folder: Whether the browse button opens a folder dialog.
+        :return: Return value.
+        """
+        ttk.Label(parent, text=label).grid(row=row, column=0, sticky="w", pady=(4, 0))
+        entry = ttk.Entry(parent, textvariable=variable)
+        entry.grid(row=row, column=1, sticky="ew", padx=(8, 0), pady=(4, 0))
+        self.add_tooltip(entry, f"{label} input.")
+        button = ttk.Button(parent, text="Browse", command=BrowseVariableCommand(self, variable, browse_folder))
+        button.grid(row=row, column=2, columnspan=2, sticky="w", padx=(6, 0), pady=(4, 0))
+        if browse_folder:
+            self.add_tooltip(button, f"Browse for {label.lower()} folder.")
+        else:
+            self.add_tooltip(button, f"Browse for {label.lower()} file.")
+
+    def close_dynawo_patch_window(self) -> None:
+        """
+        Close the Dynawo file-patching utility window.
+
+        :return: Return value.
+        """
+        if self._patch_window is None:
+            pass
+        else:
+            self._patch_window.destroy()
+            self._patch_window = None
+
+    def run_dynawo_file_patching(self) -> None:
+        """
+        Run Dynawo file patching from the utility window inputs.
+
+        :return: Return value.
+        """
+        jobs_file = Path(self._patch_jobs_file.get().strip())
+        event_source = Path(self._patch_event_source.get().strip())
+        output_dir = Path(self._patch_output_dir.get().strip())
+
+        if str(jobs_file) == "." or not jobs_file.is_file():
+            messagebox.showerror("Missing input", "Select the SCADA/base Dynawo .jobs file.")
+            return
+        else:
+            pass
+        if str(event_source) == ".":
+            messagebox.showerror("Missing input", "Select one event XML file or an events folder.")
+            return
+        else:
+            pass
+        if str(output_dir) == ".":
+            messagebox.showerror("Missing input", "Select an output directory for patched files.")
+            return
+        else:
+            pass
+
+        event_files: List[Path] = self.resolve_dynawo_patch_event_files(event_source)
+        if len(event_files) == 0:
+            messagebox.showerror("Missing input", "No event XML files were found.")
+            return
+        else:
+            pass
+
+        try:
+            patched_case: DynawoPatchedCaseFiles = patch_dynawo_case_for_events(
+                jobs_file=jobs_file,
+                event_files=event_files,
+                output_dir=output_dir,
+            )
+        except Exception as exc:
+            messagebox.showerror("Dynawo patching failed", str(exc))
+            self._status_var.set("Dynawo patching failed")
+            return
+
+        self._status_var.set(f"Patched {len(patched_case.scenarios)} Dynawo event files")
+        self.append_dynawo_patch_log(patched_case)
+        messagebox.showinfo(
+            "Dynawo patching complete",
+            (
+                f"Generated {len(patched_case.scenarios)} DYD/PAR pair(s).\n"
+                f"Multiple-jobs file: {patched_case.multiple_jobs_file}"
+            ),
+        )
+
+    def resolve_dynawo_patch_event_files(self, event_source: Path) -> List[Path]:
+        """
+        Resolve a single event file or an event folder into XML files.
+
+        :param event_source: Event XML path or folder path.
+        :return: Event XML files to patch.
+        """
+        event_files: List[Path] = list()
+        if event_source.is_file():
+            if event_source.suffix.lower() == ".xml":
+                event_files.append(event_source)
+            else:
+                pass
+        else:
+            if event_source.is_dir():
+                for event_file in sorted(event_source.iterdir()):
+                    if event_file.is_file() and event_file.suffix.lower() == ".xml":
+                        event_files.append(event_file)
+                    else:
+                        pass
+            else:
+                pass
+        return event_files
+
+    def append_dynawo_patch_log(self, patched_case: DynawoPatchedCaseFiles) -> None:
+        """
+        Append Dynawo patching results to the log panel.
+
+        :param patched_case: Generated Dynawo patch file set.
+        :return: Return value.
+        """
+        self._log_text.configure(state="normal")
+        self._log_text.insert("end", "\n[Dynawo File Patching]\n")
+        self._log_text.insert("end", f"multiple_jobs_file: {patched_case.multiple_jobs_file}\n")
+        for scenario in patched_case.scenarios:
+            self._log_text.insert(
+                "end",
+                f"{scenario.scenario_id}: {scenario.dyd_file} | {scenario.par_file}\n",
+            )
+        self._log_text.configure(state="disabled")
+        self._log_text.see("end")
 
     def bind_eurostag_autofill(self) -> None:
         """
@@ -1407,6 +1651,7 @@ class DeeacGui(tk.Tk):
             self._e_island.set("10")
             self._e_delay.set("15")
             self._e_cores.set(str(os.cpu_count() or 1))
+            self._e_hvdc_model.set(HvdcElectricalModel.LOAD.value)
             self._e_verbose.set(False)
             self._e_warn.set(False)
             self._e_generate_output_files.set(True)
@@ -1421,6 +1666,7 @@ class DeeacGui(tk.Tk):
             self._d_output.set("")
             self._d_island.set("10")
             self._d_cores.set(str(os.cpu_count() or 1))
+            self._d_hvdc_model.set(HvdcElectricalModel.LOAD.value)
             self._d_verbose.set(False)
             self._d_warn.set(False)
             self._d_generate_output_files.set(True)
@@ -1459,9 +1705,25 @@ class DeeacGui(tk.Tk):
         self._results_tabs.select(0)
         self._status_var.set("Ready")
 
-    def load_faults(self) -> None:
+    def report_load_error(self, title: str, message: str, show_dialog: bool) -> None:
+        """
+        Report a load error to the status bar and optionally to a dialog.
+
+        :param title: Error title.
+        :param message: Error message.
+        :param show_dialog: Whether to show a blocking dialog.
+        :return: Return value.
+        """
+        self._status_var.set(f"{title}: {message}")
+        if show_dialog:
+            messagebox.showerror(title, message)
+        else:
+            pass
+
+    def load_faults(self, show_errors: bool = True) -> None:
         """
 
+        :param show_errors: Whether blocking error dialogs should be shown.
         :return:
         """
         lock_owned = not self._autoload_lock
@@ -1470,37 +1732,38 @@ class DeeacGui(tk.Tk):
         try:
             workflow_name = self._selected_workflow_name()
             if workflow_name == "eurostag":
-                self.load_eurostag_faults()
+                self.load_eurostag_faults(show_errors=show_errors)
             else:
-                self.load_dynawo_faults()
+                self.load_dynawo_faults(show_errors=show_errors)
         finally:
             if lock_owned:
                 self._autoload_lock = False
 
-    def load_eurostag_faults(self) -> None:
+    def load_eurostag_faults(self, show_errors: bool = True) -> None:
         """
 
+        :param show_errors: Whether blocking error dialogs should be shown.
         :return:
         """
         try:
             execution_plan_override = self.apply_eurostag_global_config()
         except ValueError as exc:
-            messagebox.showerror("Load error", str(exc))
+            self.report_load_error("Load error", str(exc), show_errors)
             return
 
         if not self._e_ech.get() or not self._e_dta.get() or not self._e_lf.get():
-            messagebox.showerror("Missing input", "ECH, DTA, and LF files are required.")
+            self.report_load_error("Missing input", "ECH, DTA, and LF files are required.", show_errors)
             return
         if not self._e_plan.get():
-            messagebox.showerror("Missing input", "Execution plan is required.")
+            self.report_load_error("Missing input", "Execution plan is required.", show_errors)
             return
         if self._e_use_folder.get():
             if not self._e_seq_folder.get():
-                messagebox.showerror("Missing input", "Seq folder is required.")
+                self.report_load_error("Missing input", "Seq folder is required.", show_errors)
                 return
         else:
             if not self._e_seq.get():
-                messagebox.showerror("Missing input", "Seq file is required.")
+                self.report_load_error("Missing input", "Seq file is required.", show_errors)
                 return
 
         try:
@@ -1525,9 +1788,10 @@ class DeeacGui(tk.Tk):
                 seq_file=None if self._e_use_folder.get() else self._e_seq.get(),
                 seq_files=seq_files,
                 protection_delay=float(self._e_delay.get() or 0),
+                hvdc_model=parse_hvdc_electrical_model(self._e_hvdc_model.get()),
             )
         except Exception as exc:
-            messagebox.showerror("Load error", str(exc))
+            self.report_load_error("Load error", str(exc), show_errors)
             return
 
         self._network = network
@@ -1539,37 +1803,43 @@ class DeeacGui(tk.Tk):
         self.populate_faults(network.fault_events)
         self._status_var.set(f"Loaded {len(network.fault_events)} faults")
 
-    def load_dynawo_faults(self) -> None:
+    def load_dynawo_faults(self, show_errors: bool = True) -> None:
         """
 
+        :param show_errors: Whether blocking error dialogs should be shown.
         :return:
         """
         if _DYNAWO_PARSE_AVAILABLE:
             pass
         else:
-            messagebox.showerror(
+            self.report_load_error(
                 "Dynawo unavailable",
                 "Dynawo workflow is optional and currently unavailable: missing Dynawo parser dependencies.",
+                show_errors,
             )
             return
 
         try:
             execution_plan_override = self.apply_dynawo_global_config()
         except ValueError as exc:
-            messagebox.showerror("Load error", str(exc))
+            self.report_load_error("Load error", str(exc), show_errors)
             return
 
         if not self._d_plan.get():
-            messagebox.showerror("Missing input", "Execution plan is required.")
+            self.report_load_error("Missing input", "Execution plan is required.", show_errors)
             return
 
         if self.use_dynawo_jobs_mode():
             if not self._d_jobs.get().strip():
-                messagebox.showerror("Missing input", "Dynawo .jobs file is required.")
+                self.report_load_error("Missing input", "Dynawo .jobs file is required.", show_errors)
                 return
         else:
             if not self._d_iidm.get() or not self._d_dyd.get() or not self._d_par.get():
-                messagebox.showerror("Missing input", "IIDM, DYD, and PAR files are required in manual mode.")
+                self.report_load_error(
+                    "Missing input",
+                    "IIDM, DYD, and PAR files are required in manual mode.",
+                    show_errors,
+                )
                 return
 
         try:
@@ -1583,13 +1853,14 @@ class DeeacGui(tk.Tk):
             config = self.build_dynawo_run_configuration(execution_plan)
             network = parse_dynawo_configuration(config)
         except ModuleNotFoundError as exc:
-            messagebox.showerror(
+            self.report_load_error(
                 "Missing dependency",
                 "pypowsybl is required to load IIDM networks: " + str(exc),
+                show_errors,
             )
             return
         except Exception as exc:
-            messagebox.showerror("Load error", str(exc))
+            self.report_load_error("Load error", str(exc), show_errors)
             return
 
         self._network = network
@@ -1636,6 +1907,7 @@ class DeeacGui(tk.Tk):
         self._e_island.set(str(config.island_threshold))
         self._e_delay.set(str(config.protection_delay))
         self._e_cores.set(str(config.cores))
+        self._e_hvdc_model.set(config.hvdc_model.value)
         self._e_verbose.set(config.verbose)
         self._e_warn.set(config.warn)
         self._e_generate_output_files.set(self.read_bool_from_config(config_data, "generate-output-files", True))
@@ -1676,6 +1948,7 @@ class DeeacGui(tk.Tk):
         self._d_output.set(config.output_dir or "")
         self._d_island.set(str(config.island_threshold))
         self._d_cores.set(str(config.cores))
+        self._d_hvdc_model.set(config.hvdc_model.value)
         self._d_verbose.set(config.verbose)
         self._d_warn.set(config.warn)
         self._d_generate_output_files.set(self.read_bool_from_config(config_data, "generate-output-files", True))
@@ -1837,7 +2110,7 @@ class DeeacGui(tk.Tk):
 
         self._autoload_lock = True
         try:
-            self.load_faults()
+            self.load_faults(show_errors=False)
         finally:
             self._autoload_lock = False
 
@@ -1888,6 +2161,7 @@ class DeeacGui(tk.Tk):
             seq_folder,
             str(use_folder),
             self._e_delay.get().strip(),
+            self._e_hvdc_model.get().strip(),
         )
         return True, signature
 
@@ -1917,6 +2191,7 @@ class DeeacGui(tk.Tk):
                 "jobs",
                 jobs_file,
                 plan_path,
+                self._d_hvdc_model.get().strip(),
             )
             return True, signature
 
@@ -1934,6 +2209,7 @@ class DeeacGui(tk.Tk):
             dyd_file,
             par_file,
             plan_path,
+            self._d_hvdc_model.get().strip(),
         )
         return True, signature
 
@@ -2022,6 +2298,7 @@ class DeeacGui(tk.Tk):
             json_path=None,
             rewrite=True,
             warn=self._d_warn.get(),
+            hvdc_model=parse_hvdc_electrical_model(self._d_hvdc_model.get()),
         )
 
     def populate_faults(self, faults: List[FaultEvents]) -> None:

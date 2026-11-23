@@ -248,9 +248,14 @@ def read_execution_plan(
     if execution_tree_file is None:
         raise ValueError("Execution plan not provided.")
     try:
-        data = json.load(open(execution_tree_file))
+        # Read the execution-plan file at the trust boundary and normalize file
+        # access failures into validation errors for all callers, including the GUI.
+        with open(execution_tree_file, encoding="utf-8") as file_pointer:
+            data = json.load(file_pointer)
     except JSONDecodeError as exc:
         raise ValueError(f"Invalid JSON execution plan: {exc.msg}") from exc
+    except OSError as exc:
+        raise ValueError(f"Cannot read execution plan file '{execution_tree_file}': {exc.strerror}") from exc
     if not isinstance(data, dict):
         raise ValueError("Execution plan JSON must be an object.")
     return parse_execution_plan_data(data)

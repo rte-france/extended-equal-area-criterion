@@ -19,6 +19,12 @@ import os
 import sys
 from typing import List, Optional, Sequence
 
+from deeac.enums import (
+    GeneratorElectricalModel,
+    HvdcElectricalModel,
+    parse_generator_electrical_model,
+    parse_hvdc_electrical_model,
+)
 from deeac.IO.plan_loader import parse_execution_plan_data
 from deeac.IO.plan_models import ExecutionPlan
 
@@ -43,8 +49,8 @@ class EurostagRunConfiguration:
 
         * ``seq_file`` is only the single-file convenience form of ``seq_files``.
 
-        * ``seq_file_folder`` is only descriptive or UI-oriented metadata. The
-          runner executes the files listed in ``seq_files`` or ``seq_file``.
+        * Fault sources are selected in order: ``seq_files``,
+          ``seq_file_folder``, then ``seq_file``.
 
         * ``output_dir`` and ``json_path`` are two alternative output targets.
           When both are ``None``, the run only returns results in memory.
@@ -91,12 +97,14 @@ class EurostagRunConfiguration:
     :ivar seq_file: Optional single sequence file. This is the one-fault
         convenience form of ``seq_files``.
     :ivar seq_file_folder: Optional folder that contains the sequence files.
-        This does not replace ``seq_files`` during programmatic construction.
     :ivar seq_files: Sequence files to run. This is the preferred field for
         programmatic usage.
     :ivar island_threshold: Islanding threshold in MW.
     :ivar cores: Number of cores for parallel execution.
     :ivar protection_delay: Protection delay in ms.
+    :ivar ren_model: Electrical model used for RES generators parsed from
+        Eurostag topology data.
+    :ivar hvdc_model: Electrical model used for HVDC converters.
     :ivar verbose: Verbose mode flag.
     :ivar output_dir: Optional output directory path for per-fault files.
     :ivar json_path: Optional JSON output path used instead of ``output_dir``.
@@ -114,15 +122,17 @@ class EurostagRunConfiguration:
         execution_tree: Optional[ExecutionPlan],
         seq_file: Optional[str],
         seq_file_folder: Optional[str],
-        seq_files: Sequence[str],
+        seq_files: Optional[Sequence[str]],
         island_threshold: float,
         cores: int,
         protection_delay: float,
-        verbose: bool,
-        output_dir: Optional[str],
-        json_path: Optional[str],
-        rewrite: bool,
-        warn: bool,
+        ren_model: GeneratorElectricalModel = GeneratorElectricalModel.LOAD,
+        hvdc_model: HvdcElectricalModel = HvdcElectricalModel.LOAD,
+        verbose: bool = False,
+        output_dir: Optional[str] = None,
+        json_path: Optional[str] = None,
+        rewrite: bool = False,
+        warn: bool = False,
     ) -> None:
         """
         Initialize the run configuration.
@@ -137,12 +147,13 @@ class EurostagRunConfiguration:
         :param seq_file: Optional single sequence file. Keep this set to
             ``None`` when ``seq_files`` is used.
         :param seq_file_folder: Optional folder containing the sequence files.
-            This is useful as contextual metadata for CLI or GUI usage.
         :param seq_files: Explicit sequence files to execute. This is the
             preferred field for direct Python usage.
         :param island_threshold: Islanding threshold in MW.
         :param cores: Number of cores for parallel execution.
         :param protection_delay: Protection delay in ms.
+        :param ren_model: Electrical model used for RES generators.
+        :param hvdc_model: Electrical model used for HVDC converters.
         :param verbose: Verbose mode flag.
         :param output_dir: Optional output directory path. Use ``None`` to keep
             results in memory only.
@@ -160,10 +171,20 @@ class EurostagRunConfiguration:
         self.execution_tree = execution_tree
         self.seq_file = seq_file
         self.seq_file_folder = seq_file_folder
-        self.seq_files = list(seq_files)
+        if seq_files:
+            self.seq_files: List[str] = list(seq_files)
+        elif seq_file_folder is not None:
+            self.seq_files = sorted(os.path.join(seq_file_folder, name) for name in os.listdir(seq_file_folder)
+                                    if name.endswith(".seq"))
+        elif seq_file is not None:
+            self.seq_files = [seq_file]
+        else:
+            raise ValueError("At least one sequence file or folder must be provided.")
         self.island_threshold = island_threshold
         self.cores = cores
         self.protection_delay = protection_delay
+        self.ren_model = ren_model
+        self.hvdc_model = hvdc_model
         self.verbose = verbose
         self.output_dir = output_dir
         self.json_path = json_path
@@ -188,9 +209,11 @@ class DynawoRunConfiguration:
         * Manual mode: provide ``iidm_file``, ``dynawo_dyd_file``, and
           ``dynawo_par_file`` together, with ``jobs_file`` set to ``None``.
 
-        Unlike Eurostag, Dynawo fault events are discovered from the Dynawo
-        dynamic files rather than from ``.seq`` files. For that reason this
-        configuration does not expose ``seq_file`` or ``seq_files``.
+        This configuration represents the fault-free Dynawo base case. The
+        external fault JSON file or folder is supplied separately to
+        :func:`deeac.workflows.run_dynawo_workflow`, just as Eurostag receives
+        its external ``.seq`` file or folder. The base ``.iidm``, ``.dyd``,
+        ``.par``, and ``.jobs`` files therefore remain unchanged during EEAC.
 
         Example:
 
@@ -238,6 +261,7 @@ class DynawoRunConfiguration:
     :ivar dynawo_dotted_generator_inertia_multiplier: Multiplier applied
         during Dynawo parsing to generators whose IIDM id starts with ``.``.
         Use ``1.0`` to keep the raw Dynawo inertia values.
+    :ivar hvdc_model: Electrical model used for HVDC converters.
     """
 
     def __init__(
@@ -258,6 +282,7 @@ class DynawoRunConfiguration:
         rewrite: bool,
         warn: bool,
         dynawo_dotted_generator_inertia_multiplier: float = 1.0,
+        hvdc_model: HvdcElectricalModel = HvdcElectricalModel.LOAD,
     ) -> None:
         """
         Initialize the Dynawo run configuration.
@@ -283,6 +308,7 @@ class DynawoRunConfiguration:
         :param warn: Warning flag for failure handling.
         :param dynawo_dotted_generator_inertia_multiplier: Multiplier applied
             during Dynawo parsing to generators whose IIDM id starts with ``.``.
+        :param hvdc_model: Electrical model used for HVDC converters.
         :return: Return value.
         """
         self.jobs_file = jobs_file
@@ -301,6 +327,7 @@ class DynawoRunConfiguration:
         self.rewrite = rewrite
         self.warn = warn
         self.dynawo_dotted_generator_inertia_multiplier = dynawo_dotted_generator_inertia_multiplier
+        self.hvdc_model = hvdc_model
 
 
 def _as_bool(value: object, default: bool = False) -> bool:
@@ -359,6 +386,8 @@ def load_global_configuration(config_path: str) -> EurostagRunConfiguration:
         "cores",
         "island-threshold",
         "protection-delay",
+        "ren-model",
+        "hvdc-model",
         "rewrite",
         "verbose",
         "warn",
@@ -422,6 +451,8 @@ def load_global_configuration(config_path: str) -> EurostagRunConfiguration:
     cores = int(config.get("cores", _default_cores()))
     island_threshold = float(config.get("island-threshold", 0))
     protection_delay = float(config.get("protection-delay", 0))
+    ren_model = parse_generator_electrical_model(config.get("ren-model"))
+    hvdc_model = parse_hvdc_electrical_model(config.get("hvdc-model"))
     rewrite = _as_bool(config.get("rewrite"), False)
     verbose = _as_bool(config.get("verbose"), False)
     warn = _as_bool(config.get("warn"), False)
@@ -445,6 +476,8 @@ def load_global_configuration(config_path: str) -> EurostagRunConfiguration:
         island_threshold=island_threshold,
         cores=cores,
         protection_delay=protection_delay,
+        ren_model=ren_model,
+        hvdc_model=hvdc_model,
         verbose=verbose,
         output_dir=output_dir,
         json_path=json_path,
@@ -490,6 +523,7 @@ def load_dynawo_configuration(config_path: str) -> DynawoRunConfiguration:
         "verbose",
         "warn",
         "dynawo-dotted-generator-inertia-multiplier",
+        "hvdc-model",
     }
     unknown_keys = set(config.keys()) - allowed_keys
     if unknown_keys:
@@ -555,6 +589,7 @@ def load_dynawo_configuration(config_path: str) -> DynawoRunConfiguration:
     dynawo_dotted_generator_inertia_multiplier = float(
         config.get("dynawo-dotted-generator-inertia-multiplier", 1.0)
     )
+    hvdc_model = parse_hvdc_electrical_model(config.get("hvdc-model"))
 
     return DynawoRunConfiguration(
         jobs_file=jobs_file,
@@ -573,6 +608,7 @@ def load_dynawo_configuration(config_path: str) -> DynawoRunConfiguration:
         rewrite=rewrite,
         warn=warn,
         dynawo_dotted_generator_inertia_multiplier=dynawo_dotted_generator_inertia_multiplier,
+        hvdc_model=hvdc_model,
     )
 
 
@@ -592,9 +628,17 @@ def print_usage():
         f"\t-l, --lf-file <path>{tab}Path to the load flow file.\n"
         f"\t-s, --seq-file <path>{tab}Path to the sequence file.\n"
         f"\t-f, --seq-file-path <path>{tab}Path to the folder containing all the sequence files to run.\n"
+        f"\t--dynawo-jobs-file <path>{tab}Dynawo base case for post-EEAC generation.\n"
+        f"\t--generation-dir <path>{tab}Generate Dynawo cases in this directory.\n"
+        f"\t--selected-fault <id>{tab}Generate only this fault; repeat for multiple faults.\n"
+        f"\t--no-line-fault{tab}Use a split line and NodeFault when LineFault is unavailable.\n"
+        f"\t--multiple-jobs{tab}Generate a Dynawo multiple-jobs dispatcher.\n"
+        f"\t--dynawo-install-dir <path>{tab}Run generated cases using this Dynawo installation.\n"
         f"\t-t, --execution-tree-file <path>{tab}Path to a JSON file containing the EEAC tree to execute.\n"
         f"\t-i, --island-threshold <float>{tab}tolerable amount of isolated production in MW in case of islanding.\n"
         f"\t-p, --protection-delay <float>{tab}tolerable delay between the first and last BusShortCircuitEvent in ms.\n"
+        f"\t-m, --ren-model <str>{tab}RES electrical model: load or current.\n"
+        f"\t--hvdc-model <str>{tab}HVDC electrical model: load or current.\n"
         f"Options:\n"
         f"\t-o, --output-dir <path>{tab}Path to an output directory where results are outputted, incompatible with -j.\n"
         f"\t-j, --json-results <path>{tab}Path to the JSON file to save the critical cluster, incompatible with -o.\n"
@@ -616,14 +660,21 @@ def print_usage_dynawo():
     tab = "\t" * 4
     print(
         f"\nUsage:\n"
-        f"\tdeeac [arguments] [options]\n\n"
+        f"\tdeeac dynawo [arguments] [options]\n\n"
         f"Arguments:\n"
         f"\t--dynawo-jobs-file <path>{tab}Path to the Dynawo .jobs case file.\n"
+        f"\t--fault-files <path>{tab}External fault JSON file or directory.\n"
+        f"\t--generation-dir <path>{tab}Generate Dynawo cases in this directory.\n"
+        f"\t--selected-fault <id>{tab}Generate only this fault; repeat for multiple faults.\n"
+        f"\t--no-line-fault{tab}Use a split line and NodeFault when LineFault is unavailable.\n"
+        f"\t--multiple-jobs{tab}Generate a Dynawo multiple-jobs dispatcher.\n"
+        f"\t--dynawo-install-dir <path>{tab}Run generated cases using this Dynawo installation.\n"
         f"\t--iidm-file <path>{tab}Path to the IIDM network file.\n"
         f"\t--dynawo-dyd-file <path>{tab}Path to the Dynawo .dyd file.\n"
         f"\t--dynawo-par-file <path>{tab}Path to the Dynawo .par file.\n"
         f"\t--dynawo-dyn-file <path>{tab}Optional path to the Dynawo .dyn events file.\n"
         f"\t--dynawo-dotted-generator-inertia-multiplier <float>{tab}Multiplier applied to Dynawo generators whose IIDM id starts with '.'.\n"
+        f"\t--hvdc-model <str>{tab}HVDC electrical model: load or current.\n"
         f"\t-t, --execution-tree-file <path>{tab}Path to a JSON file containing the EEAC plan to execute.\n"
         f"\t-i, --island-threshold <float>{tab}tolerable amount of isolated production in MW in case of islanding.\n"
         f"\t-p, --protection-delay <float>{tab}tolerable delay between the first and last BusShortCircuitEvent in ms.\n"
@@ -650,7 +701,7 @@ def parse_eurostag_arguments(argv: Sequence[str]) -> EurostagRunConfiguration:
     try:
         opts, _ = getopt.getopt(
             argv,
-            "rhve:d:l:s:f:t:o:c:j:i:g:p:w:",
+            "rhve:d:l:s:f:t:o:c:j:i:g:p:m:w:",
             [
                 "help",
                 "ech-file=",
@@ -663,8 +714,11 @@ def parse_eurostag_arguments(argv: Sequence[str]) -> EurostagRunConfiguration:
                 "cores=",
                 "json-results=",
                 "island-threshold=",
-                "global-configuration="
+                "global-configuration=",
                 "protection-delay=",
+                "ren-model=",
+                "rm=",
+                "hvdc-model=",
                 "verbose",
                 "rewrite",
                 "warn"
@@ -692,6 +746,8 @@ def parse_eurostag_arguments(argv: Sequence[str]) -> EurostagRunConfiguration:
     cores = _default_cores()
     island_threshold = 10
     protection_delay = 15
+    ren_model = GeneratorElectricalModel.LOAD
+    hvdc_model = HvdcElectricalModel.LOAD
     global_config = None
     for opt, arg in opts:
         if opt in ("-g", "--global-configuration"):
@@ -726,6 +782,10 @@ def parse_eurostag_arguments(argv: Sequence[str]) -> EurostagRunConfiguration:
                 protection_delay = float(arg)
             elif opt in ("-j", "--json-results"):
                 json_path = arg
+            elif opt in ("-m", "--ren-model", "--rm"):
+                ren_model = parse_generator_electrical_model(arg)
+            elif opt == "--hvdc-model":
+                hvdc_model = parse_hvdc_electrical_model(arg)
             elif opt in ("-v", "--verbose"):
                 verbose = True
             elif opt in ("-r", "--rewrite"):
@@ -752,6 +812,8 @@ def parse_eurostag_arguments(argv: Sequence[str]) -> EurostagRunConfiguration:
         cores = config.cores
         island_threshold = config.island_threshold
         protection_delay = config.protection_delay
+        ren_model = config.ren_model
+        hvdc_model = config.hvdc_model
         rewrite = config.rewrite
         verbose = config.verbose
         warn = config.warn
@@ -825,6 +887,8 @@ def parse_eurostag_arguments(argv: Sequence[str]) -> EurostagRunConfiguration:
         island_threshold=island_threshold,
         cores=cores,
         protection_delay=protection_delay,
+        ren_model=ren_model,
+        hvdc_model=hvdc_model,
         verbose=verbose,
         output_dir=output_dir,
         json_path=json_path,
@@ -853,6 +917,7 @@ def parse_dynawo_arguments(argv: Sequence[str]) -> DynawoRunConfiguration:
                 "dynawo-par-file=",
                 "dynawo-dyn-file=",
                 "dynawo-dotted-generator-inertia-multiplier=",
+                "hvdc-model=",
                 "execution-tree-file=",
                 "output-dir=",
                 "cores=",
@@ -882,6 +947,7 @@ def parse_dynawo_arguments(argv: Sequence[str]) -> DynawoRunConfiguration:
     verbose = False
     warn = False
     dynawo_dotted_generator_inertia_multiplier = 1.0
+    hvdc_model = HvdcElectricalModel.LOAD
     cores = _default_cores()
     island_threshold = 0
     protection_delay = 0
@@ -909,6 +975,8 @@ def parse_dynawo_arguments(argv: Sequence[str]) -> DynawoRunConfiguration:
                 dynawo_dyn_file = arg
             elif opt == "--dynawo-dotted-generator-inertia-multiplier":
                 dynawo_dotted_generator_inertia_multiplier = float(arg)
+            elif opt == "--hvdc-model":
+                hvdc_model = parse_hvdc_electrical_model(arg)
             elif opt in ("-t", "--execution-tree-file"):
                 execution_tree_file = arg
             elif opt in ("-o", "--output-dir"):
@@ -951,6 +1019,7 @@ def parse_dynawo_arguments(argv: Sequence[str]) -> DynawoRunConfiguration:
         verbose = config.verbose
         warn = config.warn
         dynawo_dotted_generator_inertia_multiplier = config.dynawo_dotted_generator_inertia_multiplier
+        hvdc_model = config.hvdc_model
 
     if warn is True:
         print("WARNING: the warning option is activated, the CCT will not be computed if any candidates cluster fails")
@@ -1019,4 +1088,5 @@ def parse_dynawo_arguments(argv: Sequence[str]) -> DynawoRunConfiguration:
         rewrite=rewrite,
         warn=warn,
         dynawo_dotted_generator_inertia_multiplier=dynawo_dotted_generator_inertia_multiplier,
+        hvdc_model=hvdc_model,
     )

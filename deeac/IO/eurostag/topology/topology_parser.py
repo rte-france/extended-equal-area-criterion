@@ -14,11 +14,18 @@ Module for topology_parser.
 
 from deeac.Models.network import Network
 
-from deeac.enums import BusType, parse_generator_source
+from deeac.enums import (
+    BusType,
+    GeneratorElectricalModel,
+    GeneratorSource,
+    HvdcElectricalModel,
+    parse_generator_source,
+)
 from deeac.Models.bus import Bus
+from deeac.Models.hvdc_converter import HvdcConverter
 from deeac.Models.load import Load
 from deeac.Models.line import Line
-from deeac.Models.generator import Generator, GeneratorType
+from deeac.Models.generator import PowerElectronicsGenerator, SynchronousGenerator, GeneratorType
 from deeac.Models.transformer import Transformer
 from deeac.Models.capacitor_bank import CapacitorBank
 from deeac.Models.breaker import Breaker
@@ -38,15 +45,41 @@ class EurostagTopologyParser:
     :ivar dta_file_parser: dta file parser.
     """
 
-    def __init__(self, ech_file: str, dta_file: str):
+    def __init__(
+            self,
+            ech_file: str,
+            dta_file: str,
+            ren_model: GeneratorElectricalModel = GeneratorElectricalModel.LOAD,
+            hvdc_model: HvdcElectricalModel = HvdcElectricalModel.LOAD,
+    ):
         """
         Initialize the parser with path to .ech and .dta files.
         
         :param ech_file: Path to the file with static network data.
         :param dta_file: Path to the file with dynamic network data.
+        :param ren_model: Electrical model assigned to RES generators.
+        :param hvdc_model: Electrical model assigned to HVDC converters.
         """
         self.ech_file_parser = EchEurostagFileParser(ech_file)
         self.dta_file_parser = DtaEurostagFileParser(dta_file)
+        self._ren_model = ren_model
+        self._hvdc_model = hvdc_model
+
+    @staticmethod
+    def _is_power_electronics_source(source: GeneratorSource) -> bool:
+        """
+        Tell whether the parsed source should be modeled as converter-based.
+
+        :param source: Parsed generator source.
+        :return: True when the source is converter-based.
+        """
+        if source is None:
+            return False
+        else:
+            return source in {
+                GeneratorSource.eolien,
+                GeneratorSource.photovol,
+            }
 
     def parse_network_topology(self) -> Network:
         """
@@ -289,51 +322,64 @@ class EurostagTopologyParser:
             Pmax = float(generator_data['max_active_power'])
             Q = float(generator_data['reactive_power'])
 
-            # Get dynamic data, if any
-            generator_content = generator_dyn_data_dict.get(generator_name, None)
-            if generator_content is None:
+            source = parse_generator_source(generator_data['source'])
 
-                # Generator has no dynamic data and will be modeled as a load
-                generator_name = f"GEN_{generator_name}"
-                grid.check_load_name(generator_name)
-                generator_content = {"name": generator_name}
+            # Regulating mode
+            regulating = True if generator_data['regulating_mode'] == 'V' else False
 
-                # Generator is modeled as a negative load
-                load = Load(
-                    name=generator_content['name'],
-                    bus=connected_bus,
-                    connected=connected,
-                    active_power=-P,
-                    reactive_power=-Q
-                )
-                grid.add_load(load)
-
+            if connected_bus.type == BusType.SLACK:
+                generator_type = GeneratorType.SLACK
             else:
+                generator_type = GeneratorType.PV if regulating else GeneratorType.PQ
 
-                source = parse_generator_source(generator_data['source'])
+            if self._is_power_electronics_source(source):
+                grid.add_power_electronics_generator(
+                    PowerElectronicsGenerator(
+                        name=generator_name,
+                        bus=connected_bus,
+                        connected=connected,
+                        active_power=P,
+                        max_active_power=Pmax,
+                        reactive_power=Q,
+                        regulating=regulating,
+                        tpe=generator_type,
+                        source=source,
+                        electrical_model=self._ren_model,
+                    )
+                )
+            else:
+                # Get dynamic data, if any
+                generator_content = generator_dyn_data_dict.get(generator_name, None)
+                if generator_content is None:
+                    # Non-converter generator with no dynamic data falls back to
+                    # a static negative load, which matches the historical
+                    # synchronous-only simplification.
+                    generator_name = f"GEN_{generator_name}"
+                    grid.check_load_name(generator_name)
+                    generator_content = {"name": generator_name}
 
-                # Regulating mode
-                regulating = True if generator_data['regulating_mode'] == 'V' else False
-
-                if connected_bus.type == BusType.SLACK:
-                    generator_type = GeneratorType.SLACK
+                    load = Load(
+                        name=generator_content['name'],
+                        bus=connected_bus,
+                        connected=connected,
+                        active_power=-P,
+                        reactive_power=-Q
+                    )
+                    grid.add_load(load)
                 else:
-                    generator_type = GeneratorType.PV if regulating else GeneratorType.PQ
-
-                # Create generator
-                grid.add_generator(Generator(
-                    name=generator_content['name'],
-                    bus=connected_bus,
-                    connected=connected,
-                    active_power=P,
-                    max_active_power=Pmax,
-                    reactive_power=Q,
-                    direct_transient_reactance=generator_content['direct_transient_reactance'],
-                    inertia_constant=generator_content['inertia_constant'],
-                    regulating=regulating,
-                    tpe=generator_type,
-                    source=source,
-                ))
+                    grid.add_generator(SynchronousGenerator(
+                        name=generator_content['name'],
+                        bus=connected_bus,
+                        connected=connected,
+                        active_power=P,
+                        max_active_power=Pmax,
+                        reactive_power=Q,
+                        direct_transient_reactance=generator_content['direct_transient_reactance'],
+                        inertia_constant=generator_content['inertia_constant'],
+                        regulating=regulating,
+                        tpe=generator_type,
+                        source=source,
+                    ))
 
         # Capacitor banks
         capacitor_banks_data = self.ech_file_parser.get_network_data(EchRecordType.CAPACITOR_BANK)
@@ -391,13 +437,15 @@ class EurostagTopologyParser:
             # Connection state
             converter_connected = False if hvdc_data['state'] == 'S' else True
 
-            # Create converter
-            converter = Load(
+            # Build the physical HVDC element with its simulation setting.
+            # The network compiles it into the numerical object used by EEAC.
+            converter = HvdcConverter(
                 name=hvdc_data['name'],
                 bus=connected_bus,
                 active_power=0,
                 reactive_power=0,
-                connected=converter_connected
+                connected=converter_connected,
+                electrical_model=self._hvdc_model,
             )
             # hvdc_converters[converter.name] = converter
             grid.add_hvdc_converter(converter)

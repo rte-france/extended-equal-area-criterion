@@ -19,7 +19,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, Tuple, List, Iterator
 
 
-from deeac.Models.generator import Generator
+from deeac.Models.generator import SynchronousGenerator
 from deeac.Models.generator_snapshot import GeneratorSnapshot
 from deeac.Models.generator_cluster import GeneratorCluster
 from deeac.Models.network import Network
@@ -74,7 +74,7 @@ class CriticalClustersIdentifier(ABC):
 
         # Set of generators to consider
         self._generator_snapshot = generator_snapshot
-        self._generators: List[Generator] = list(generator_snapshot.generators)
+        self._generators: List[SynchronousGenerator] = list(generator_snapshot.generators)
         self._generator_indices = list(range(len(self._generators)))
         # Set of generators to consider but never as potentially critical
         if never_critical_generators is not None:
@@ -84,8 +84,8 @@ class CriticalClustersIdentifier(ABC):
             self._never_critical_generators = list()
 
         # Initialize containers for intermediate results to improve performances
-        self._generator_electric_powers: Dict[Generator, float] = dict()
-        self._generator_accelerations: Dict[Generator, float] = dict()
+        self._generator_electric_powers: Dict[SynchronousGenerator, float] = dict()
+        self._generator_accelerations: Dict[SynchronousGenerator, float] = dict()
 
         # Identify critical machine candidates
         self._critical_machine_candidates: List[int] = []

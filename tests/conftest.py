@@ -8,7 +8,7 @@ import pytest
 from deeac.IO.eurostag.events.event_parser import EurostagEventParser
 from deeac.IO.eurostag.load_flow.load_flow_parser import EurostagLoadFlowParser
 from deeac.IO.eurostag.topology.topology_parser import EurostagTopologyParser
-
+from deeac.Models.network import Network
 
 TEST_DATA_DIR = Path(__file__).parent / "data"
 CASE1_DIR = TEST_DATA_DIR / "case1"
@@ -27,12 +27,15 @@ def case1_topology():
 
 
 @pytest.fixture
-def case1_network(case1_topology):
+def case1_network(case1_topology: Network):
     """
     Build the full case1 network with load-flow applied.
     """
-    load_flow_parser = EurostagLoadFlowParser(load_flow_results_file=str(CASE1_DIR / "case1.lf"))
-    load_flow_parser.parse_load_flow(case1_topology)
+    load_flow_parser = EurostagLoadFlowParser(
+        network=case1_topology,
+        load_flow_results_file=str(CASE1_DIR / "case1.lf")
+    )
+    load_flow_parser.parse_load_flow()
     return case1_topology
 
 

@@ -28,7 +28,8 @@ from deeac.Models.events.breaker_event import BreakerEvent
 from deeac.Models.events.bus_short_circuit_clearing_event import BusShortCircuitClearingEvent
 from deeac.Models.events.bus_short_circuit_event import BusShortCircuitEvent
 from deeac.Models.events.mitigation_event import MitigationEvent
-from deeac.Models.generator import Generator, GeneratorType
+from deeac.Models.generator import SynchronousGenerator, GeneratorType
+from deeac.Models.hvdc_converter import HvdcConverter
 from deeac.Models.load import Load
 from deeac.Models.line import Line
 from deeac.Models.transformer import Transformer
@@ -37,7 +38,7 @@ from deeac.Models.events.branch_event import BranchEvent
 from deeac.Models.events.line_short_circuit_clearing_event import LineShortCircuitClearingEvent
 from deeac.Models.events.line_short_circuit_event import LineShortCircuitEvent
 from deeac.Models.network import Network
-from deeac.enums import BreakerPosition, GeneratorSource, parse_generator_source
+from deeac.enums import BreakerPosition, GeneratorSource, HvdcElectricalModel, parse_generator_source
 
 
 class DynawoCaseFiles:
@@ -534,6 +535,7 @@ class DynawoMultiFileParser:
         "dyd_file",
         "par_file",
         "dotted_generator_inertia_multiplier",
+        "hvdc_model",
     )
 
     def __init__(
@@ -543,6 +545,7 @@ class DynawoMultiFileParser:
             dyd_file: Optional[str],
             par_file: Optional[str],
             dotted_generator_inertia_multiplier: float = 1.0,
+            hvdc_model: HvdcElectricalModel = HvdcElectricalModel.LOAD,
     ) -> None:
         """
         Initialize the Dynawo multi-file parser.
@@ -553,6 +556,7 @@ class DynawoMultiFileParser:
         :param par_file: Optional PAR file path used in manual mode.
         :param dotted_generator_inertia_multiplier: Multiplier applied during
             Dynawo parsing to generators whose IIDM id starts with ``.``.
+        :param hvdc_model: Electrical model assigned to HVDC converters.
         :return: Return value.
         """
         self.jobs_file = jobs_file
@@ -560,6 +564,7 @@ class DynawoMultiFileParser:
         self.dyd_file = dyd_file
         self.par_file = par_file
         self.dotted_generator_inertia_multiplier = dotted_generator_inertia_multiplier
+        self.hvdc_model = hvdc_model
 
     def parse(self) -> Network:
         """
@@ -574,6 +579,7 @@ class DynawoMultiFileParser:
             dynawo_dyd_file=case_files.dyd_file,
             dynawo_par_file=case_files.par_file,
             dotted_generator_inertia_multiplier=self.dotted_generator_inertia_multiplier,
+            hvdc_model=self.hvdc_model,
         )
         network: Network = parser.parse()
         fault_events: List[FaultEvents] = self._parse_fault_events(case_files)
@@ -646,6 +652,33 @@ def normalize_iidm_bus_name(bus_name: str) -> str:
         return bus_name[:-5]
     else:
         return bus_name
+
+
+def resolve_dynawo_terminal_bus_id(
+        row: object,
+        terminal_number: Optional[int],
+        node_bus_ids: Dict[tuple[str, str], str],
+) -> str:
+    """Resolve a PowSyBl terminal to its EEAC bus identifier.
+
+    :param row: PowSyBl equipment dataframe row.
+    :param terminal_number: Branch terminal number, or ``None`` for injections.
+    :param node_bus_ids: Node-breaker voltage-level/node to busbar-section map.
+    :return: IIDM bus or busbar-section identifier used by EEAC.
+    """
+    if terminal_number is None:
+        voltage_level_id: str = str(row["voltage_level_id"])
+        node_value: object = row["node"]
+        bus_id: str = str(row["bus_id"])
+    else:
+        voltage_level_id = str(row[f"voltage_level{terminal_number}_id"])
+        node_value = row[f"node{terminal_number}"]
+        bus_id = str(row[f"bus{terminal_number}_id"])
+    node_key: tuple[str, str] = (voltage_level_id, str(node_value))
+    if node_key in node_bus_ids:
+        return node_bus_ids[node_key]
+    else:
+        return bus_id
 
 
 def extract_branch_parallel_id(branch_id: str) -> str:
@@ -768,7 +801,7 @@ def build_dynawo_fault_events(
     :param parameter_sets: Dynawo `.par` sets keyed by id.
     :return: Parsed fault event bundles.
     """
-    network_lines = load_iidm_line_data(iidm_file)
+    network_branches: Dict[str, Dict[str, str]] = load_iidm_branch_data(iidm_file)
     fault_events: List[FaultEvents] = list()
 
     for model in models.values():
@@ -779,22 +812,410 @@ def build_dynawo_fault_events(
                 models,
                 connects,
                 parameter_sets,
-                network_lines,
+                network_branches,
             )
             if line_fault_events is not None:
                 fault_events.append(line_fault_events)
             else:
                 pass
         else:
-            pass
+            if library_name == "nodefault":
+                node_fault_events: Optional[FaultEvents] = build_node_fault_events(
+                    model,
+                    models,
+                    connects,
+                    parameter_sets,
+                    network_branches,
+                )
+                if node_fault_events is not None:
+                    fault_events.append(node_fault_events)
+                else:
+                    pass
+            else:
+                pass
 
     return fault_events
+
+
+def load_iidm_branch_data(iidm_file: str) -> Dict[str, Dict[str, str]]:
+    """
+    Load IIDM line and transformer data needed to map Dynawo ids to buses.
+
+    :param iidm_file: Path to the IIDM file.
+    :return: Mapping from IIDM branch id to bus-name pairs.
+    """
+    powsybl_network = pp.network.load(iidm_file)
+    buses = powsybl_network.get_buses(all_attributes=True)
+    lines = powsybl_network.get_lines(all_attributes=True)
+    transformers = powsybl_network.get_2_windings_transformers(all_attributes=True)
+
+    bus_names_by_id: Dict[str, str] = build_iidm_bus_name_map(buses, iidm_file)
+
+    branch_data: Dict[str, Dict[str, str]] = dict()
+    add_iidm_branch_data(branch_data, lines, bus_names_by_id)
+    add_iidm_branch_data(branch_data, transformers, bus_names_by_id)
+    return branch_data
+
+
+def build_iidm_bus_name_map(buses: object, iidm_file: Optional[str] = None) -> Dict[str, str]:
+    """
+    Build a bus-name lookup from a PowSyBl buses dataframe.
+
+    :param buses: PowSyBl bus dataframe.
+    :param iidm_file: Original IIDM file used to restore empty PowSyBl names.
+    :return: Mapping from IIDM bus id to normalized DEEAC bus name.
+    """
+    bus_names_by_id: Dict[str, str] = dict()
+    original_bus_ids_by_voltage_level: Dict[str, List[str]] = dict()
+    if iidm_file is not None:
+        original_bus_ids_by_voltage_level = load_iidm_bus_ids(iidm_file)
+    else:
+        pass
+
+    bus_positions_by_voltage_level: Dict[str, int] = dict()
+    for bus_id, row in buses.iterrows():
+        bus_id_str: str = str(bus_id)
+        bus_name: str = str(row["name"])
+        voltage_level_id: str = str(row["voltage_level_id"])
+        if bus_name == "":
+            original_bus_ids: Optional[List[str]] = original_bus_ids_by_voltage_level.get(
+                voltage_level_id,
+                None,
+            )
+            bus_position: int = bus_positions_by_voltage_level.get(voltage_level_id, 0)
+            if original_bus_ids is not None and bus_position < len(original_bus_ids):
+                bus_names_by_id[bus_id_str] = normalize_iidm_bus_name(original_bus_ids[bus_position])
+            else:
+                bus_names_by_id[bus_id_str] = normalize_iidm_bus_name(bus_id_str)
+            bus_positions_by_voltage_level[voltage_level_id] = bus_position + 1
+        else:
+            bus_names_by_id[bus_id_str] = normalize_iidm_bus_name(bus_name)
+            bus_positions_by_voltage_level[voltage_level_id] = bus_positions_by_voltage_level.get(
+                voltage_level_id,
+                0,
+            ) + 1
+
+    return bus_names_by_id
+
+
+def load_iidm_bus_ids(iidm_file: str) -> Dict[str, List[str]]:
+    """
+    Read original bus identifiers grouped by their IIDM voltage level.
+
+    :param iidm_file: Original IIDM file.
+    :return: Original bus identifiers in their voltage-level order.
+    """
+    root: ET.Element = ET.parse(iidm_file).getroot()
+    bus_ids_by_voltage_level: Dict[str, List[str]] = dict()
+    for voltage_level in root.iter():
+        if strip_namespace(voltage_level.tag) == "voltageLevel":
+            voltage_level_id: Optional[str] = voltage_level.get("id")
+            if voltage_level_id is not None:
+                bus_ids: List[str] = list()
+                for element in voltage_level.iter():
+                    if strip_namespace(element.tag) == "bus":
+                        bus_id: Optional[str] = element.get("id")
+                        if bus_id is not None:
+                            bus_ids.append(bus_id)
+                        else:
+                            pass
+                    else:
+                        pass
+                bus_ids_by_voltage_level[voltage_level_id] = bus_ids
+            else:
+                pass
+        else:
+            pass
+    return bus_ids_by_voltage_level
+
+
+def add_iidm_branch_data(
+        branch_data: Dict[str, Dict[str, str]],
+        branches: object,
+        bus_names_by_id: Dict[str, str],
+) -> None:
+    """
+    Add connected IIDM branch rows to the shared branch lookup.
+
+    :param branch_data: Branch lookup to update.
+    :param branches: PowSyBl branch dataframe.
+    :param bus_names_by_id: Mapping from IIDM bus id to DEEAC bus name.
+    :return: Return value.
+    """
+    for branch_id, row in branches.iterrows():
+        if row["connected1"] and row["connected2"]:
+            first_bus_id: str = str(row["bus1_id"])
+            second_bus_id: str = str(row["bus2_id"])
+            first_bus_name: Optional[str] = bus_names_by_id.get(first_bus_id, None)
+            second_bus_name: Optional[str] = bus_names_by_id.get(second_bus_id, None)
+            if first_bus_name is not None and second_bus_name is not None:
+                branch_data[str(branch_id)] = {
+                    "first_bus_name": first_bus_name,
+                    "second_bus_name": second_bus_name,
+                    "parallel_id": extract_branch_parallel_id(str(branch_id)),
+                }
+            else:
+                pass
+        else:
+            pass
+
+    return None
+
+
+def get_node_fault_bus_name(model_id: str, connects: List[DynawoConnect]) -> Optional[str]:
+    """
+    Get the DEEAC bus name connected to a Dynawo ``NodeFault`` model.
+
+    :param model_id: Dynawo fault model id.
+    :param connects: Dynawo connection list.
+    :return: DEEAC bus name when the terminal can be parsed.
+    """
+    for connect in connects:
+        if connect.source_id == model_id and connect.source_variable == "fault_terminal":
+            bus_name: Optional[str] = parse_dynawo_bus_terminal_name(connect.target_variable)
+            if bus_name is not None:
+                return bus_name
+            else:
+                pass
+        else:
+            pass
+
+    return None
+
+
+def parse_dynawo_bus_terminal_name(target_variable: str) -> Optional[str]:
+    """
+    Parse a Dynawo network bus terminal variable into a DEEAC bus name.
+
+    :param target_variable: Dynawo target variable such as
+        ``_BUS____3_TN_ACPIN``.
+    :return: Normalized DEEAC bus name when the variable is a bus terminal.
+    """
+    if target_variable.endswith("_ACPIN"):
+        terminal_name: str = target_variable[:-6]
+    else:
+        return None
+
+    if terminal_name.startswith("_"):
+        terminal_name = terminal_name[1:]
+    else:
+        terminal_name = terminal_name
+
+    bus_token: str
+    if "_TN" in terminal_name:
+        bus_token = terminal_name.split("_TN", 1)[0]
+    else:
+        bus_token = terminal_name
+
+    if bus_token.startswith("BUS"):
+        return normalize_iidm_bus_name(bus_token.replace("_", " "))
+    else:
+        return bus_token
+
+
+def build_connected_branch_events(
+        model_id: str,
+        models: Dict[str, DynawoBlackBoxModel],
+        connects: List[DynawoConnect],
+        parameter_sets: Dict[str, Dict[str, object]],
+        network_branches: Dict[str, Dict[str, str]],
+        event_time: Optional[float],
+        excluded_branch_id: Optional[str] = None,
+) -> List[BranchEvent]:
+    """
+    Build every branch opening associated with a Dynawo fault.
+
+    :param model_id: Dynawo fault model id.
+    :param models: Dynawo model definitions.
+    :param connects: Dynawo connection list.
+    :param parameter_sets: Dynawo parameter sets.
+    :param network_branches: Mapping from IIDM branch id to DEEAC branch data.
+    :param event_time: Fault clearing time.
+    :param excluded_branch_id: Branch already opened by the fault switch-off signal.
+    :return: Branch-opening events, with duplicate equipment targets removed.
+    """
+    branch_events: List[BranchEvent] = list()
+    opened_branch_ids: Set[str] = set()
+    if excluded_branch_id is not None:
+        opened_branch_ids.add(excluded_branch_id)
+    else:
+        pass
+
+    # One switching event can target several lines and transformers in NETWORK.
+    for connect in connects:
+        source_model_id: str = connect.source_id
+        if connect.target_id == "NETWORK" and connect.target_variable.endswith("_state_value"):
+            source_is_connected_to_fault: bool = is_event_connected_to_fault(
+                event_model_id=source_model_id,
+                fault_model_id=model_id,
+                models=models,
+                connects=connects,
+                parameter_sets=parameter_sets,
+                event_time=event_time,
+            )
+            if source_is_connected_to_fault is True:
+                branch_id: str = connect.target_variable[:-12]
+                branch_mapping: Optional[Dict[str, str]] = network_branches.get(branch_id, None)
+                if branch_mapping is not None and branch_id not in opened_branch_ids and event_time is not None:
+                    branch_events.append(
+                        BranchEvent(
+                            time=event_time,
+                            first_bus_name=branch_mapping["first_bus_name"],
+                            second_bus_name=branch_mapping["second_bus_name"],
+                            parallel_id=branch_mapping["parallel_id"],
+                            breaker_position=BreakerPosition.FIRST_BUS,
+                            breaker_closed=False,
+                        )
+                    )
+                    branch_events.append(
+                        BranchEvent(
+                            time=event_time,
+                            first_bus_name=branch_mapping["second_bus_name"],
+                            second_bus_name=branch_mapping["first_bus_name"],
+                            parallel_id=branch_mapping["parallel_id"],
+                            breaker_position=BreakerPosition.FIRST_BUS,
+                            breaker_closed=False,
+                        )
+                    )
+                    opened_branch_ids.add(branch_id)
+                else:
+                    pass
+            else:
+                pass
+        else:
+            pass
+
+    return branch_events
+
+
+def is_event_connected_to_fault(
+        event_model_id: str,
+        fault_model_id: str,
+        models: Dict[str, DynawoBlackBoxModel],
+        connects: List[DynawoConnect],
+        parameter_sets: Dict[str, Dict[str, object]],
+        event_time: Optional[float],
+) -> bool:
+    """
+    Tell whether an event model is part of the same Dynawo fault scenario.
+
+    :param event_model_id: Event model id to test.
+    :param fault_model_id: Fault model id.
+    :param models: Dynawo model definitions.
+    :param connects: Dynawo connection list.
+    :param parameter_sets: Dynawo parameter sets.
+    :param event_time: Fault clearing time.
+    :return: ``True`` when the event signal targets the fault model.
+    """
+    connected_to_other_fault: bool = False
+    for connect in connects:
+        if connect.source_id == event_model_id and connect.target_id == fault_model_id:
+            return True
+        else:
+            target_model: Optional[DynawoBlackBoxModel] = models.get(connect.target_id, None)
+            if (
+                    connect.source_id == event_model_id and target_model is not None
+                    and target_model.library_name.lower() in ("nodefault", "linefault")
+            ):
+                connected_to_other_fault = True
+            else:
+                pass
+
+    # Explicit wiring takes precedence over coincident clearing times.
+    if connected_to_other_fault:
+        return False
+    else:
+        pass
+
+    # Transformer examples disconnect the quadripole directly from an event
+    # model without connecting that event to NodeFault. In that case, require
+    # the exact Dynawo quadripole event type and the same clearing time.
+    event_model: Optional[DynawoBlackBoxModel] = models.get(event_model_id, None)
+    if event_model is not None and event_model.par_id is not None:
+        if event_model.library_name.lower() == "eventquadripoledisconnection":
+            event_parameters: Optional[Dict[str, object]] = parameter_sets.get(event_model.par_id, None)
+            if event_parameters is not None:
+                disconnection_time: Optional[float] = get_float_parameter(event_parameters, "event_tEvent")
+                if event_time is not None and disconnection_time == event_time:
+                    return True
+                else:
+                    return False
+            else:
+                return False
+        else:
+            return False
+    else:
+        return False
+
+
+def build_node_fault_events(
+        model: DynawoBlackBoxModel,
+        models: Dict[str, DynawoBlackBoxModel],
+        connects: List[DynawoConnect],
+        parameter_sets: Dict[str, Dict[str, object]],
+        network_branches: Dict[str, Dict[str, str]],
+) -> Optional[FaultEvents]:
+    """
+    Build DEEAC fault events for a Dynawo ``NodeFault`` model.
+
+    :param model: Dynawo node fault model.
+    :param models: Dynawo model definitions.
+    :param connects: Dynawo connection list.
+    :param parameter_sets: Dynawo parameter sets.
+    :param network_branches: Mapping from IIDM branch id to bus-name pairs.
+    :return: Fault event bundle if the model can be mapped, otherwise ``None``.
+    """
+    if model.par_id is None:
+        return None
+    else:
+        fault_parameters: Optional[Dict[str, object]] = parameter_sets.get(model.par_id)
+        fault_bus_name: Optional[str] = get_node_fault_bus_name(model.model_id, connects)
+        if fault_parameters is None or fault_bus_name is None:
+            return None
+        else:
+            start_time: Optional[float] = get_float_parameter(fault_parameters, "fault_tBegin")
+            end_time: Optional[float] = get_float_parameter(fault_parameters, "fault_tEnd")
+            if end_time is None:
+                end_time = get_connected_event_time(model.model_id, models, connects, parameter_sets)
+            else:
+                end_time = end_time
+
+            if start_time is None:
+                return None
+            else:
+                resistance: float = get_float_parameter(fault_parameters, "fault_RPu", 0.0)
+                reactance: float = get_float_parameter(fault_parameters, "fault_XPu", 0.0)
+                failure_events = list()
+                mitigation_events = list()
+                failure_events.append(
+                    BusShortCircuitEvent(
+                        time=start_time,
+                        bus_name=fault_bus_name,
+                        fault_resistance=resistance,
+                        fault_reactance=reactance,
+                    )
+                )
+                if end_time is not None:
+                    mitigation_events.append(BusShortCircuitClearingEvent(time=end_time, bus_name=fault_bus_name))
+                    mitigation_events.extend(
+                        build_connected_branch_events(
+                            model.model_id, models, connects, parameter_sets, network_branches, end_time
+                        )
+                    )
+                else:
+                    mitigation_events = mitigation_events
+
+                return FaultEvents(
+                    failure_events=failure_events,
+                    mitigation_events=mitigation_events,
+                    name=model.model_id,
+                )
 
 
 def load_iidm_line_data(iidm_file: str) -> Dict[str, Dict[str, str]]:
     """
     Load IIDM line data needed to map Dynawo static ids to bus names.
-    
+
     :param iidm_file: Path to the IIDM file.
     :return: Mapping from IIDM line id to bus-name pairs.
     """
@@ -802,25 +1223,10 @@ def load_iidm_line_data(iidm_file: str) -> Dict[str, Dict[str, str]]:
     buses = powsybl_network.get_buses(all_attributes=True)
     lines = powsybl_network.get_lines(all_attributes=True)
 
-    bus_names_by_id: Dict[str, str] = dict()
-    for bus_id, row in buses.iterrows():
-        bus_name = row["name"]
-        if bus_name == "":
-            bus_names_by_id[str(bus_id)] = str(bus_id)
-        else:
-            bus_names_by_id[str(bus_id)] = normalize_iidm_bus_name(str(bus_name))
+    bus_names_by_id: Dict[str, str] = build_iidm_bus_name_map(buses, iidm_file)
 
     line_data: Dict[str, Dict[str, str]] = dict()
-    for line_id, row in lines.iterrows():
-        if row["connected1"] and row["connected2"]:
-            first_bus_id: str = str(row["bus1_id"])
-            second_bus_id: str = str(row["bus2_id"])
-            line_data[str(line_id)] = {
-                "first_bus_name": bus_names_by_id[first_bus_id],
-                "second_bus_name": bus_names_by_id[second_bus_id],
-                "parallel_id": extract_branch_parallel_id(str(line_id)),
-            }
-
+    add_iidm_branch_data(line_data, lines, bus_names_by_id)
     return line_data
 
 
@@ -882,7 +1288,9 @@ def build_line_fault_events(
                     )
                 )
                 if end_time is not None:
+                    excluded_branch_id: Optional[str] = None
                     if has_line_switch_off_signal(model.model_id, connects):
+                        excluded_branch_id = model.static_id
                         mitigation_events.append(
                             BranchEvent(
                                 time=end_time,
@@ -912,6 +1320,13 @@ def build_line_fault_events(
                                 parallel_id=parallel_id,
                             )
                         )
+                    # Additional NETWORK trips must also affect the post-fault topology.
+                    mitigation_events.extend(
+                        build_connected_branch_events(
+                            model.model_id, models, connects, parameter_sets, network_lines, end_time,
+                            excluded_branch_id,
+                        )
+                    )
                 else:
                     mitigation_events = mitigation_events
 
@@ -1032,6 +1447,38 @@ def sanitize_numeric_value(value: object, default_value: float = 0.0) -> float:
         return default_value
 
 
+def get_hvdc_converter_bus(
+        bus_dict: Dict[str, Bus],
+        converter_station_id: str,
+        converter_station_bus_map: Dict[str, str],
+) -> Optional[Bus]:
+    """
+    Find the IIDM bus associated with an HVDC converter station id.
+
+    :param bus_dict: Mapping from IIDM bus identifier to DEEAC bus.
+    :param converter_station_id: IIDM converter station identifier.
+    :param converter_station_bus_map: Mapping from converter station id to IIDM
+        bus id.
+    :return: Matching bus when PowSyBl exposes one through the bus id.
+    """
+    converter_bus_id: Optional[str] = converter_station_bus_map.get(converter_station_id, None)
+    if converter_bus_id is None:
+        selected_bus: Optional[Bus] = None
+        station_prefix: str = converter_station_id[0:7]
+        for bus_id, bus in bus_dict.items():
+            if station_prefix in bus_id:
+                selected_bus = bus
+            else:
+                pass
+        return selected_bus
+    else:
+        selected_bus = bus_dict.get(converter_bus_id, None)
+        if selected_bus is None:
+            return None
+        else:
+            return selected_bus
+
+
 def select_slack_generator_id(
         generators,
         bus_dict: Dict[str, Bus],
@@ -1098,6 +1545,7 @@ class IidmParser:
             dynawo_dyd_file: Optional[str] = None,
             dynawo_par_file: Optional[str] = None,
             dotted_generator_inertia_multiplier: float = 1.0,
+            hvdc_model: HvdcElectricalModel = HvdcElectricalModel.LOAD,
     ) -> None:
         """
 
@@ -1106,8 +1554,10 @@ class IidmParser:
         :param dynawo_par_file: Dynawo .par file path.
         :param dotted_generator_inertia_multiplier: Multiplier applied to
             generators whose IIDM id starts with ``.``.
+        :param hvdc_model: Electrical model assigned to HVDC converters.
         """
 
+        self._iidm_file = fname
         if os.path.exists(fname):
             self.ps_grid = pp.network.load(fname)
         else:
@@ -1115,6 +1565,7 @@ class IidmParser:
 
         self._dynawo_dyd_file = dynawo_dyd_file
         self._dotted_generator_inertia_multiplier = dotted_generator_inertia_multiplier
+        self._hvdc_model = hvdc_model
         if dynawo_dyd_file is not None and dynawo_par_file is not None:
             self._dynawo_parser = DynawoParametersParser(dynawo_dyd_file, dynawo_par_file)
         else:
@@ -1135,6 +1586,7 @@ class IidmParser:
             # substations = self.ps_grid.get_substations(all_attributes=True)
             voltage_levels = self.ps_grid.get_voltage_levels(all_attributes=True)
             buses = self.ps_grid.get_buses(all_attributes=True)
+            busbar_sections = self.ps_grid.get_busbar_sections(all_attributes=True)
 
             lines = self.ps_grid.get_lines(all_attributes=True)
             branches = self.ps_grid.get_branches(all_attributes=True)
@@ -1145,6 +1597,8 @@ class IidmParser:
 
             loads = self.ps_grid.get_loads(all_attributes=True)
             gens = self.ps_grid.get_generators(all_attributes=True)
+            vsc_converter_stations = self.ps_grid.get_vsc_converter_stations(all_attributes=True)
+            lcc_converter_stations = self.ps_grid.get_lcc_converter_stations(all_attributes=True)
             capacitor_banks = self.ps_grid.get_shunt_compensators(all_attributes=True)
             svc = self.ps_grid.get_static_var_compensators(all_attributes=True)
 
@@ -1158,7 +1612,21 @@ class IidmParser:
             """
             vl_dict = {i: row["nominal_v"] for i, row in voltage_levels.iterrows()}
 
+            # PowSyBl is useful for solving and exposing the electrical network,
+            # but its bus dataframe is not a lossless representation of the IIDM
+            # bus identifiers. In particular, for RTE BUS_BREAKER voltage levels,
+            # PowSyBl returns an empty ``name`` and creates a dataframe index such
+            # as ``BRAUDP7_0`` from the connected-component position. That index
+            # is an implementation detail: it is not the original IIDM name
+            # ``BRAUDP71`` used by Dynawo events, Eurostag files, and DEEAC
+            # lookups. Reading the original IIDM bus elements here lets DEEAC
+            # preserve the external identifier while still using PowSyBl data
+            # for voltages, angles, branches, loads, and generators.
+            bus_names_by_id: Dict[str, str] = build_iidm_bus_name_map(buses, self._iidm_file)
             bus_dict = dict()
+            node_bus_ids: Dict[tuple[str, str], str] = dict()
+            for busbar_section_id, busbar_section in busbar_sections.iterrows():
+                node_bus_ids[(str(busbar_section["voltage_level_id"]), str(busbar_section["node"]))] = str(busbar_section_id)
             for idx, row in buses.iterrows():
                 """
                 0 = {str} 'name'
@@ -1171,11 +1639,7 @@ class IidmParser:
                 """
 
                 vl_id = row["voltage_level_id"]
-                name = row["name"] if row["name"] != "" else idx
-                if isinstance(name, str):
-                    name = normalize_iidm_bus_name(name)
-                else:
-                    name = str(idx)
+                name: str = bus_names_by_id[str(idx)]
                 bus = Bus(
                     name=name,
                     base_voltage=vl_dict[vl_id],
@@ -1185,6 +1649,30 @@ class IidmParser:
                 )
                 grid.add_bus(bus)
                 bus_dict[idx] = bus
+
+            for busbar_section_id, busbar_section in busbar_sections.iterrows():
+                section_id: str = str(busbar_section_id)
+                solved_bus_id: str = str(busbar_section["bus_id"])
+                solved_bus: Optional[Bus] = bus_dict.get(solved_bus_id)
+                if section_id not in bus_dict and solved_bus is not None:
+                    bus_dict[section_id] = Bus(
+                        name=section_id,
+                        base_voltage=solved_bus.base_voltage,
+                        voltage_magnitude=solved_bus.voltage_magnitude,
+                        phase_angle=solved_bus.phase_angle,
+                        tpe=None,
+                    )
+                    grid.add_bus(bus_dict[section_id])
+                else:
+                    pass
+
+            converter_station_bus_map: Dict[str, str] = dict()
+            for converter_station_id, row in vsc_converter_stations.iterrows():
+                # PowSyBl HVDC lines reference converter stations by id. The
+                # station table is the authoritative way to resolve the AC bus.
+                converter_station_bus_map[str(converter_station_id)] = str(row["bus_id"])
+            for converter_station_id, row in lcc_converter_stations.iterrows():
+                converter_station_bus_map[str(converter_station_id)] = str(row["bus_id"])
 
             for i, row in lines.iterrows():
                 """
@@ -1216,8 +1704,8 @@ class IidmParser:
                 25 = {str} 'selected_limits_group_2'
                 """
                 if row["connected1"] and row["connected2"]:
-                    bus1 = bus_dict[row["bus1_id"]]
-                    bus2 = bus_dict[row["bus2_id"]]
+                    bus1 = bus_dict[resolve_dynawo_terminal_bus_id(row, 1, node_bus_ids)]
+                    bus2 = bus_dict[resolve_dynawo_terminal_bus_id(row, 2, node_bus_ids)]
                     line_base_impedance: float = bus1.base_voltage * bus2.base_voltage / grid.base_power
 
                     grid.add_branch(sending_bus=bus1,
@@ -1270,8 +1758,8 @@ class IidmParser:
                 32 = {str} 'b_at_current_tap'
                 """
                 if row["connected1"] and row["connected2"]:
-                    bus1 = bus_dict[row["bus1_id"]]
-                    bus2 = bus_dict[row["bus2_id"]]
+                    bus1 = bus_dict[resolve_dynawo_terminal_bus_id(row, 1, node_bus_ids)]
+                    bus2 = bus_dict[resolve_dynawo_terminal_bus_id(row, 2, node_bus_ids)]
                     transformer_base_impedance: float = bus2.base_voltage ** 2 / grid.base_power
                     transformer_ratio: float
                     if bus1.voltage_magnitude != 0 and bus2.voltage_magnitude != 0:
@@ -1314,16 +1802,71 @@ class IidmParser:
                 09 = {str} 'connected2'
                 10 = {str} 'fictitious'
                 """
-                bus1 = bus_dict[[v for v in bus_dict if row["converter_station2_id"][0:7] in v][0]]
-                grid.add_hvdc_converter(
-                    Load(
-                        name=i,
-                        bus=bus1,
-                        connected=row["connected2"],
-                        active_power=row["target_p"],
-                        reactive_power=0,
+                if self._hvdc_model == HvdcElectricalModel.LOAD:
+                    # Legacy simulation option:
+                    # keep the historical PowSyBl conversion exactly: one
+                    # passive load on converter station 2 using target_p.
+                    bus1 = get_hvdc_converter_bus(
+                        bus_dict,
+                        str(row["converter_station2_id"]),
+                        converter_station_bus_map,
                     )
-                )
+                    if bus1 is None:
+                        pass
+                    else:
+                        grid.add_hvdc_converter(
+                            HvdcConverter(
+                                name=i,
+                                bus=bus1,
+                                connected=row["connected2"],
+                                active_power=row["target_p"],
+                                reactive_power=0,
+                                electrical_model=HvdcElectricalModel.LOAD,
+                            )
+                        )
+                else:
+                    # Current-source simulation option:
+                    # use the simple HVDC model requested in #31: the DC link
+                    # is represented by two equal-and-opposite current-source
+                    # injections at the two converter stations. Losses and
+                    # reactive controls are intentionally left out of this
+                    # first explicit model.
+                    converter_station1_id: str = str(row["converter_station1_id"])
+                    converter_station2_id: str = str(row["converter_station2_id"])
+                    bus1 = get_hvdc_converter_bus(
+                        bus_dict,
+                        converter_station1_id,
+                        converter_station_bus_map,
+                    )
+                    bus2 = get_hvdc_converter_bus(
+                        bus_dict,
+                        converter_station2_id,
+                        converter_station_bus_map,
+                    )
+                    target_p: float = sanitize_numeric_value(row["target_p"])
+                    if bus1 is None or bus2 is None:
+                        pass
+                    else:
+                        grid.add_hvdc_converter(
+                            HvdcConverter(
+                                name=converter_station1_id,
+                                bus=bus1,
+                                connected=bool(row["connected1"]),
+                                active_power=-target_p,
+                                reactive_power=0,
+                                electrical_model=HvdcElectricalModel.CURRENT,
+                            )
+                        )
+                        grid.add_hvdc_converter(
+                            HvdcConverter(
+                                name=converter_station2_id,
+                                bus=bus2,
+                                connected=bool(row["connected2"]),
+                                active_power=target_p,
+                                reactive_power=0,
+                                electrical_model=HvdcElectricalModel.CURRENT,
+                            )
+                        )
 
             for i, row in loads.iterrows():
                 """
@@ -1344,7 +1887,7 @@ class IidmParser:
                 if "fict_" in row.name:
                     a=1
                 if row["connected"] and not math.isnan(row.p):
-                    bus1 = bus_dict[row["bus_id"]]
+                    bus1 = bus_dict[resolve_dynawo_terminal_bus_id(row, None, node_bus_ids)]
                     grid.add_load(
                         Load(
                             name=row.name,
@@ -1411,7 +1954,7 @@ class IidmParser:
                 28 = {str} 'fictitious'
                 """
                 if row["connected"]:
-                    bus1 = bus_dict[row["bus_id"]]
+                    bus1 = bus_dict[resolve_dynawo_terminal_bus_id(row, None, node_bus_ids)]
                     generator_id = str(i)
                     generator_name = row["name"] if row["name"] != "" else generator_id
                     generator_source: GeneratorSource = parse_generator_source(str(row["energy_source"]))
@@ -1478,7 +2021,7 @@ class IidmParser:
                         )
 
                     grid.add_generator(
-                        Generator(
+                        SynchronousGenerator(
                             name=generator_name,
                             bus=bus1,
                             connected=row["connected"],
@@ -1517,7 +2060,7 @@ class IidmParser:
                 19 = {str} 'fictitious'
                 """
                 if row["connected"] and not math.isnan(row.q):
-                    bus1 = bus_dict[row["bus_id"]]
+                    bus1 = bus_dict[resolve_dynawo_terminal_bus_id(row, None, node_bus_ids)]
                     grid.add_capacitor_bank(
                         CapacitorBank(
                             name=row.name,
@@ -1550,7 +2093,7 @@ class IidmParser:
                 18 = {str} 'fictitious'
                 """
                 if row["connected"]:
-                    bus1 = bus_dict[row["bus_id"]]
+                    bus1 = bus_dict[resolve_dynawo_terminal_bus_id(row, None, node_bus_ids)]
                     grid.add_static_var_compensator(
                         CapacitorBank(
                             name=row.name,

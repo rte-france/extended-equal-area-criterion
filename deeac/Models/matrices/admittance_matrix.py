@@ -15,22 +15,35 @@ Module for admittance_matrix.
 import cmath
 
 import numpy as np
+import scipy.sparse as sp
 from typing import List, Dict, Iterable
-from scipy.sparse import linalg, coo_matrix
+# from scipy.sparse import linalg, coo_matrix, csc_matrix
 from deeac.Models.bus import Bus
 from deeac.Models.transformer import Transformer
 from deeac.Models.line import Line
 from deeac.Models.matrices.bus_matrix import BusMatrix
+from deeac.enums import GeneratorElectricalModel
 
 
-def _bus_without_generators_sort_key(bus: Bus) -> int:
+def _bus_sort_key(bus: Bus) -> int:
     """
-    Sort generator buses before passive buses.
+    Sort buses by retained source type before passive buses.
     
     :param bus: Bus to rank.
-    :return: ``0`` when the bus hosts generators, ``1`` otherwise.
+    :return: Ranking key.
     """
-    return int(len(bus.generators) == 0)
+    has_synchronous_generator: bool = len(bus.generators) > 0
+    has_current_power_electronics_generator: bool = any(
+        generator.electrical_model == GeneratorElectricalModel.CURRENT
+        for generator in bus.power_electronics_generators
+    )
+    if has_synchronous_generator:
+        return 0
+    else:
+        if has_current_power_electronics_generator:
+            return 1
+        else:
+            return 2
 
 
 class AdmittanceMatrix(BusMatrix):
@@ -52,8 +65,15 @@ class AdmittanceMatrix(BusMatrix):
         :param buses: List of the buses represented by the matrix.
         """
         # Sort buses so that buses associated to a generator come first
-        sorted_buses: List[Bus] = sorted(buses, key=_bus_without_generators_sort_key)
+        sorted_buses: List[Bus] = sorted(buses, key=_bus_sort_key)
         self._generator_buses = [bus for bus in sorted_buses if bus.generators]
+        self._power_electronics_current_buses = [
+            bus for bus in sorted_buses
+            if not bus.generators and any(
+                generator.electrical_model == GeneratorElectricalModel.CURRENT
+                for generator in bus.power_electronics_generators
+            )
+        ]
 
         # Get indexes
         bus_indexes = self._build_index_mapping(sorted_buses)
@@ -73,13 +93,22 @@ class AdmittanceMatrix(BusMatrix):
         """
         return self._generator_buses
 
-    def _build_matrix(self, buses: Iterable[Bus], bus_indexes: Dict[str, int]) -> np.ndarray:
+    @property
+    def power_electronics_current_buses(self) -> List[Bus]:
+        """
+        Return a list of buses hosting retained current-source converters.
+
+        :return: A list of current-source converter buses.
+        """
+        return self._power_electronics_current_buses
+
+    def _build_matrix(self, buses: Iterable[Bus], bus_indexes: Dict[str, int]) -> sp.csc_matrix:
         """
         Build the admittance matrix.
         
         :param buses: List of buses sorted so that buses connected to a generator appear first.
         :param bus_indexes: Index mapping of the buses to use to build the matrix.
-        :return: A numpy sparse matrix (csc) with the content of the admittance matrix.
+        :return: A sparse matrix (csc) with the content of the admittance matrix.
         """
         data = []
         rows = []
@@ -89,8 +118,15 @@ class AdmittanceMatrix(BusMatrix):
 
         for i, bus in enumerate(buses):
             loads = bus.loads
+            power_electronics_generators = bus.power_electronics_generators
             capacitor_banks = bus.capacitor_banks
             bus_name = bus.name
+
+            for generator in power_electronics_generators:
+                if generator.electrical_model == GeneratorElectricalModel.LOAD:
+                    rows.append(i)
+                    cols.append(i)
+                    data.append(generator.admittance)
 
             for load in loads:
                 rows.append(i)
@@ -175,7 +211,7 @@ class AdmittanceMatrix(BusMatrix):
                 data.extend([-branch_admittance_i, -branch_admittance_j])
 
         # Build the sparse matrix using COO format, then convert to CSC
-        return coo_matrix((data, (rows, cols)), shape=(dimension, dimension), dtype=complex).tocsc()
+        return sp.coo_matrix((data, (rows, cols)), shape=(dimension, dimension), dtype=complex).tocsc()
 
     @property
     def reduction(self) -> 'ReducedAdmittanceMatrix':
@@ -212,8 +248,11 @@ class ReducedAdmittanceMatrix(BusMatrix):
         :param admittance_matrix: Admittance matrix to use to compute the reduction.
         """
         matrix = self._build_matrix(admittance_matrix)
+        retained_buses: List[Bus] = (
+            admittance_matrix.generator_buses + admittance_matrix.power_electronics_current_buses
+        )
         # Get indexes and create the bus matrix
-        bus_indexes = self._build_index_mapping(admittance_matrix.generator_buses)
+        bus_indexes = self._build_index_mapping(retained_buses)
         super().__init__(matrix=matrix, bus_indexes=bus_indexes)
 
     @staticmethod
@@ -231,18 +270,82 @@ class ReducedAdmittanceMatrix(BusMatrix):
         :param admittance_matrix: Admittance matrix used for the reduction.
         :return: A numpy array with the content of the reduced admittance matrix.
         """
-        # Number of buses in the matrix connected to a generator
+        # Number of retained synchronous-generator buses.
         nb_generator_buses = len(admittance_matrix.generator_buses)
+        nb_power_electronics_current_buses = len(admittance_matrix.power_electronics_current_buses)
 
-        # Split the matrix into 4 parts
-        y_generators = admittance_matrix.matrix[:nb_generator_buses, :nb_generator_buses]
-        y_non_generators = admittance_matrix.matrix[nb_generator_buses:, nb_generator_buses:]
-        y_upper_right = admittance_matrix.matrix[:nb_generator_buses, nb_generator_buses:]
-        y_lower_left = admittance_matrix.matrix[nb_generator_buses:, :nb_generator_buses]
+        if nb_power_electronics_current_buses == 0:
+            # Classical reduction kept untouched when no current-source
+            # converters must remain as explicit buses.
+            y_generators = admittance_matrix.matrix[:nb_generator_buses, :nb_generator_buses]
+            y_non_generators = admittance_matrix.matrix[nb_generator_buses:, nb_generator_buses:]
+            y_upper_right = admittance_matrix.matrix[:nb_generator_buses, nb_generator_buses:]
+            y_lower_left = admittance_matrix.matrix[nb_generator_buses:, :nb_generator_buses]
+            if y_non_generators.shape[0] == 0:
+                reduced_matrix = y_generators
+            else:
+                lu = sp.linalg.splu(y_non_generators)
+                temp = lu.solve(y_lower_left.toarray())
+                reduced_matrix = y_generators - y_upper_right @ temp
+        else:
+            y_nn = admittance_matrix.matrix[:nb_generator_buses, :nb_generator_buses]
+            y_ns = admittance_matrix.matrix[
+                :nb_generator_buses, nb_generator_buses:(nb_generator_buses + nb_power_electronics_current_buses)
+            ]
+            y_nr = admittance_matrix.matrix[
+                :nb_generator_buses, (nb_generator_buses + nb_power_electronics_current_buses):
+            ]
+            y_sn = admittance_matrix.matrix[
+                nb_generator_buses:(nb_generator_buses + nb_power_electronics_current_buses), :nb_generator_buses
+            ]
+            y_ss = admittance_matrix.matrix[
+                nb_generator_buses:(nb_generator_buses + nb_power_electronics_current_buses),
+                nb_generator_buses:(nb_generator_buses + nb_power_electronics_current_buses),
+            ]
+            y_sr = admittance_matrix.matrix[
+                nb_generator_buses:(nb_generator_buses + nb_power_electronics_current_buses),
+                (nb_generator_buses + nb_power_electronics_current_buses):,
+            ]
+            y_rn = admittance_matrix.matrix[
+                (nb_generator_buses + nb_power_electronics_current_buses):, :nb_generator_buses
+            ]
+            y_rs = admittance_matrix.matrix[
+                (nb_generator_buses + nb_power_electronics_current_buses):,
+                nb_generator_buses:(nb_generator_buses + nb_power_electronics_current_buses),
+            ]
+            y_rr = admittance_matrix.matrix[
+                (nb_generator_buses + nb_power_electronics_current_buses):,
+                (nb_generator_buses + nb_power_electronics_current_buses):,
+            ]
 
-        # Compute the reduced matrix
-        lu = linalg.splu(y_non_generators)
-        temp = lu.solve(y_lower_left.toarray())
-        reduced_matrix = y_generators - y_upper_right @ temp
+            if y_rr.shape[0] == 0:
+                r_nn = y_nn
+                r_ns = y_ns
+                r_sn = y_sn
+                r_ss = y_ss
+            else:
+                lu_rr = sp.linalg.splu(y_rr)
+                y_rr_inv_y_rn = lu_rr.solve(y_rn.toarray())
+                y_rr_inv_y_rs = lu_rr.solve(y_rs.toarray())
+
+                r_nn = y_nn - y_nr @ y_rr_inv_y_rn
+                r_ns = y_ns - y_nr @ y_rr_inv_y_rs
+                r_sn = y_sn - y_sr @ y_rr_inv_y_rn
+                r_ss = y_ss - y_sr @ y_rr_inv_y_rs
+
+            lu_rss = sp.linalg.splu(sp.csc_matrix(r_ss))
+            if hasattr(r_sn, "toarray"):
+                r_sn_array = r_sn.toarray()
+            else:
+                r_sn_array = np.asarray(r_sn, dtype=complex)
+            r_sn_array = np.atleast_2d(r_sn_array)
+            r_ss_inv_r_sn = lu_rss.solve(r_sn_array)
+            r_ss_inv = lu_rss.solve(np.eye(r_ss.shape[0]))
+
+            d_nn = r_nn - r_ns @ r_ss_inv_r_sn
+            d_ns = r_ns @ r_ss_inv
+            d_sn = -r_ss_inv_r_sn
+            d_ss = r_ss_inv
+            reduced_matrix = np.block([[d_nn, d_ns], [d_sn, d_ss]])
 
         return reduced_matrix

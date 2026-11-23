@@ -1,0 +1,18 @@
+Report for node 11_CCE 1 - OMIB:
+	Execution time: 0.001 seconds
+	Configuration:
+		Type of OMIB: ZOOMIB
+	Output:
+		OMIB:
+			Type: ZOOMIB
+			Stability state: UNKNOWN
+			Swing state: BACKWARD
+			Critical generators: GEN    1
+			Properties:
+				PRE-FAULT:
+					Angle: 0.128 rad [7.355 deg] - Time: 0 ms - Angle shift: 0.118 rad [6.787 deg] - Constant power: 1.515 p.u. - Maximum power: 18.525 p.u.
+				DURING-FAULT:
+					Angle: 0.128 rad [7.355 deg] - Time: 0 ms - Angle shift: 0.064 rad [3.685 deg] - Constant power: 10.033 p.u. - Maximum power: 6.125 p.u.
+				POST-FAULT:
+					Angle: 0.128 rad [7.355 deg] - Time: 0 ms - Angle shift: 0.13 rad [7.421 deg] - Constant power: 1.121 p.u. - Maximum power: 15.491 p.u.
+

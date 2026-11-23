@@ -1,0 +1,80 @@
+{
+  "configurations": [
+    {
+      "name": "Base"
+    },
+    {
+      "name": "B1P50",
+      "generators": [
+        { "name": "GEN    4", "bus": "BUS    1", "p": "     50.0", "q": "      0.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    1", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "B1P100",
+      "generators": [
+        { "name": "GEN    4", "bus": "BUS    1", "p": "    100.0", "q": "      0.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    1", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "B1Q50",
+      "generators": [
+        { "name": "GEN    4", "bus": "BUS    1", "p": "      0.0", "q": "     50.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    1", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "B1Q100",
+      "generators": [
+        { "name": "GEN    4", "bus": "BUS    1", "p": "      0.0", "q": "    100.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    1", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "B2P50",
+      "generators": [
+        { "name": "GEN    4", "bus": "BUS    2", "p": "     50.0", "q": "      0.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    2", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "B2P100",
+      "generators": [
+        { "name": "GEN    4", "bus": "BUS    2", "p": "    100.0", "q": "      0.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    2", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "B2Q50",
+      "generators": [
+        { "name": "GEN    4", "bus": "BUS    2", "p": "      0.0", "q": "     50.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    2", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "B2Q100",
+      "generators": [
+        { "name": "GEN    4", "bus": "BUS    2", "p": "      0.0", "q": "    100.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    2", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "B5P50",
+      "generators": [
+        { "name": "GEN    4", "bus": "BUS    1", "p": "     50.0", "q": "      0.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    5", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "B5P100",
+      "generators": [
+        { "name": "GEN    4", "bus": "BUS    1", "p": "    100.0", "q": "      0.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    5", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "B5Q50",
+      "generators": [
+        { "name": "GEN    4", "bus": "BUS    1", "p": "      0.0", "q": "     50.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    5", "type": "Eolien  " }
+      ]
+    },
+    {
+      "name": "B5Q100",
+      "generators": [
+        { "name": "GEN    4", "bus": "BUS    1", "p": "      0.0", "q": "    100.0", "reg": " N", "voltage": "     69.0", "bus_voltage": "BUS    5", "type": "Eolien  " }
+      ]
+    }
+  ]
+}
+

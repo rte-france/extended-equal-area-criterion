@@ -15,7 +15,7 @@ Module for selector.
 from typing import List
 
 from deeac.Models.generator_cluster import GeneratorCluster
-from deeac.Models.generator import Generator
+from deeac.Models.generator import SynchronousGenerator
 from deeac.enums import OMIBStabilityState, OMIBSwingState
 
 
@@ -58,7 +58,7 @@ class CriticalClusterResults:
         critical_time: float,
         maximum_angle: float,
         maximum_time: float,
-        generators: List[Generator],
+        generators: List[SynchronousGenerator],
         omib_stability_state: OMIBStabilityState,
         omib_swing_state: OMIBSwingState,
     ) -> None:

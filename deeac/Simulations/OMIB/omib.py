@@ -22,8 +22,9 @@ from abc import ABC, abstractmethod
 from typing import Dict, Tuple, List
 from itertools import chain
 
-from deeac.enums import OMIBSwingState, OMIBStabilityState
+from deeac.enums import GeneratorElectricalModel, OMIBSwingState, OMIBStabilityState
 from deeac.Models.generator_cluster import GeneratorCluster
+from deeac.Models.generator import PowerElectronicsGenerator
 from deeac.Models.network import Network, NetworkComputed, NetworkState
 
 
@@ -317,6 +318,31 @@ class OMIB(ABC):
             np.array(angular_deviations, dtype=float),
         )
 
+    @staticmethod
+    def _get_power_electronics_arrays(
+            generators: List[PowerElectronicsGenerator],
+            bus_index_map: Dict[str, int],
+    ) -> Tuple[List[str], np.ndarray, np.ndarray]:
+        """
+        Build explicit arrays for retained current-source converter injections.
+
+        :param generators: Converter-based generators to retain in the reduced system.
+        :param bus_index_map: Bus index map for the reduced admittance matrix.
+        :return: Generator names, bus indices, and current amplitudes.
+        """
+        names: List[str] = list()
+        bus_indices: List[int] = list()
+        current_amplitudes: List[float] = list()
+        for generator in generators:
+            names.append(generator.name)
+            bus_indices.append(bus_index_map[generator.bus.name])
+            current_amplitudes.append(abs(generator.current))
+        return (
+            names,
+            np.array(bus_indices, dtype=int),
+            np.array(current_amplitudes, dtype=float),
+        )
+
     def _build_state(self, state: NetworkState, compute_at_initial_time: bool = True):
         """
         Build the specific OMIB state, computing the constant and maximum electric powers, and the angle shift.
@@ -324,13 +350,6 @@ class OMIB(ABC):
         :param state: State that must be built.
         :param compute_at_initial_time: True if the state must also be built for the initial time
         """
-        # Different cluster combinations to consider
-        cluster_combinations = [
-            (self._critical_cluster, self._non_critical_cluster),
-            (self._critical_cluster, self._critical_cluster),
-            (self._non_critical_cluster, self._non_critical_cluster)
-        ]
-
         # Compute inertia ratios
         try:
             non_critical_inertia_ratio = self._non_critical_cluster.total_inertia / self.total_inertia
@@ -344,6 +363,22 @@ class OMIB(ABC):
         reduced_dense, bus_index_map = simplified_network.get_reduced_admittance_dense()
         generator_index_map = self._network.get_generator_index_map(self._computed)
         voltage_product_matrix = self._network.get_generator_voltage_product_matrix(self._computed)
+        retained_power_electronics_generators: List[PowerElectronicsGenerator] = [
+            generator for generator in simplified_network.power_electronics_generators
+            if generator.electrical_model == GeneratorElectricalModel.CURRENT
+        ]
+
+        # Different cluster combinations to consider.
+        cluster_combinations = [
+            (self._critical_cluster, self._non_critical_cluster),
+            (self._critical_cluster, self._critical_cluster),
+            (self._non_critical_cluster, self._non_critical_cluster)
+        ]
+        if retained_power_electronics_generators:
+            cluster_combinations.extend([
+                (self._critical_cluster, retained_power_electronics_generators),
+                (self._non_critical_cluster, retained_power_electronics_generators),
+            ])
 
         # Update times for the specified state
         if compute_at_initial_time:
@@ -354,26 +389,43 @@ class OMIB(ABC):
             ]
         for update_time in update_times:
             # Structures to store results
-            constant_power_terms = [0, 0]
-            first_constant_terms = [0, 0]
-            second_constant_terms = [0, 0]
+            constant_power_terms = [0, 0, 0]
+            first_constant_terms = [0, 0, 0]
+            second_constant_terms = [0, 0, 0]
 
             # Compute conductance and susceptance products for the cluster combinations
             for combination in cluster_combinations:
                 (cluster1, cluster2) = combination
                 term_pos = 0 if combination == cluster_combinations[1] else 1
-                # Gather arrays once and use vectorized matrix operations to avoid per-pair Python loops.
                 names1, gen_idx1, bus_idx1, ang_dev1 = self._get_cluster_arrays(
-                    cluster1, update_time, state, bus_index_map, generator_index_map
+                    cluster1,
+                    update_time,
+                    state,
+                    bus_index_map,
+                    generator_index_map,
                 )
                 if cluster1 == cluster2:
-                    names2, gen_idx2, bus_idx2, ang_dev2 = names1, gen_idx1, bus_idx1, ang_dev1
+                    names2 = names1
+                    gen_idx2 = gen_idx1
+                    bus_idx2 = bus_idx1
+                    ang_dev2 = ang_dev1
                 else:
-                    names2, gen_idx2, bus_idx2, ang_dev2 = self._get_cluster_arrays(
-                        cluster2, update_time, state, bus_index_map, generator_index_map
-                    )
+                    if isinstance(cluster2, GeneratorCluster):
+                        names2, gen_idx2, bus_idx2, ang_dev2 = self._get_cluster_arrays(
+                            cluster2,
+                            update_time,
+                            state,
+                            bus_index_map,
+                            generator_index_map,
+                        )
+                    else:
+                        names2, bus_idx2, current_amplitudes = self._get_power_electronics_arrays(
+                            cluster2,
+                            bus_index_map,
+                        )
+                        gen_idx2 = None
+                        ang_dev2 = np.zeros(len(names2), dtype=float)
 
-                # Performance: compute all pairwise conductance/susceptance terms with numpy arrays to avoid nested loops.
                 angle_diff = ang_dev1[:, None] - ang_dev2[None, :]
                 sine = np.sin(angle_diff)
                 cosine = np.cos(angle_diff)
@@ -382,7 +434,14 @@ class OMIB(ABC):
                 conductance = admittance_sub.real
                 susceptance = admittance_sub.imag
 
-                voltage_products = voltage_product_matrix[np.ix_(gen_idx1, gen_idx2)]
+                if isinstance(cluster2, GeneratorCluster):
+                    voltage_products = voltage_product_matrix[np.ix_(gen_idx1, gen_idx2)]
+                else:
+                    voltage_products = (
+                        np.abs([generator.internal_voltage for generator in cluster1.generators])[:, None] *
+                        current_amplitudes[None, :]
+                    )
+
                 sine_voltage_product = sine * voltage_products
                 cosine_voltage_product = cosine * voltage_products
 
@@ -391,19 +450,34 @@ class OMIB(ABC):
                 conductance_cosine_term = cosine_voltage_product * conductance
                 susceptance_cosine_term = cosine_voltage_product * susceptance
 
-                if cluster1 == cluster2:
-                    # Critical / critical or non-critical / non-critical
-                    constant_power_terms[term_pos] += float(np.sum(conductance_cosine_term))
+                if isinstance(cluster2, GeneratorCluster):
+                    if cluster1 == cluster2:
+                        # Critical / critical or non-critical / non-critical.
+                        constant_power_terms[term_pos] += float(np.sum(conductance_cosine_term))
+                    else:
+                        # Critical / non-critical.
+                        first_constant_terms[0] += float(np.sum(susceptance_sine_term))
+                        first_constant_terms[1] += float(np.sum(conductance_cosine_term))
+                        second_constant_terms[0] += float(np.sum(susceptance_cosine_term))
+                        second_constant_terms[1] += float(np.sum(conductance_sine_term))
                 else:
-                    # Critical / non-critical
-                    first_constant_terms[0] += float(np.sum(susceptance_sine_term))
-                    first_constant_terms[1] += float(np.sum(conductance_cosine_term))
-                    second_constant_terms[0] += float(np.sum(susceptance_cosine_term))
-                    second_constant_terms[1] += float(np.sum(conductance_sine_term))
+                    if combination == cluster_combinations[4]:
+                        constant_power_terms[2] += float(np.sum(conductance_cosine_term + susceptance_sine_term))
+                    else:
+                        first_constant_terms[2] += float(np.sum(conductance_cosine_term + susceptance_sine_term))
+                        second_constant_terms[2] += float(np.sum(susceptance_cosine_term - conductance_sine_term))
 
             # Compute first and second constants implied in maximum electric power and angle shift
-            first_constant = first_constant_terms[0] + first_constant_terms[1] * inertia_ratio_difference
-            second_constant = second_constant_terms[0] - second_constant_terms[1] * inertia_ratio_difference
+            first_constant = (
+                first_constant_terms[0] +
+                first_constant_terms[1] * inertia_ratio_difference +
+                first_constant_terms[2] * non_critical_inertia_ratio
+            )
+            second_constant = (
+                second_constant_terms[0] -
+                second_constant_terms[1] * inertia_ratio_difference +
+                second_constant_terms[2] * non_critical_inertia_ratio
+            )
 
             # Compute maximum electric power
             self._maximum_electric_powers[(state, update_time)] = np.sqrt(first_constant ** 2 + second_constant ** 2)
@@ -416,7 +490,7 @@ class OMIB(ABC):
             # Compute constant electric power
             self._constant_electric_powers[(state, update_time)] = (
                     non_critical_inertia_ratio * constant_power_terms[0] - critical_inertia_ratio *
-                    constant_power_terms[1]
+                    (constant_power_terms[1] + constant_power_terms[2])
             )
 
     @abstractmethod

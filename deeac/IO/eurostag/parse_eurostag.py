@@ -13,6 +13,7 @@ Module for parse_eurostag.
 # This file is part of the deeac project.
 from typing import Optional, Sequence
 
+from deeac.enums import GeneratorElectricalModel, HvdcElectricalModel
 from deeac.IO.event_loader import EventLoader
 from deeac.IO.eurostag.events.event_parser import EurostagEventParser
 from deeac.IO.eurostag.topology.topology_parser import EurostagTopologyParser
@@ -28,6 +29,8 @@ def parse_eurostag(
     seq_file: Optional[str] = None,
     seq_files: Optional[Sequence[str]] = None,
     protection_delay: float = 0.0,
+    ren_model: GeneratorElectricalModel = GeneratorElectricalModel.LOAD,
+    hvdc_model: HvdcElectricalModel = HvdcElectricalModel.LOAD,
 ) -> Network:
     """
     
@@ -37,19 +40,26 @@ def parse_eurostag(
     :param seq_file:
     :param seq_files:
     :param protection_delay:
+    :param ren_model:
+    :param hvdc_model:
     :return:
     """
     topology_parser = EurostagTopologyParser(
         ech_file=ech_file,
-        dta_file=dta_file
-    )
-    load_flow_parser = EurostagLoadFlowParser(
-        load_flow_results_file=lf_file
+        dta_file=dta_file,
+        ren_model=ren_model,
+        hvdc_model=hvdc_model,
     )
 
     # Parse network topology and load flow data
     network = topology_parser.parse_network_topology()
-    load_flow_parser.parse_load_flow(network=network)
+
+    load_flow_parser = EurostagLoadFlowParser(
+        network=network,
+        load_flow_results_file=lf_file
+    )
+
+    load_flow_parser.parse_load_flow()
 
     seq_paths: Sequence[str] = []
     if seq_file is not None:

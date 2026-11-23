@@ -43,6 +43,7 @@ from deeac.IO.plan_models import (
     SelectorConfig,
 )
 from deeac.Simulations.results import EEACResult
+from deeac.enums import GeneratorSource
 
 
 class EEAC:
@@ -210,10 +211,32 @@ def _run_critical_clusters_identifier(
             network, computed, generator_snapshot, config, min_cluster_power, "NO_HYDRO"
         )
         candidates.extend(list(no_hydro_identifier.candidate_clusters))
-        nuclear_identifier: DuringFaultTrajectoryCriticalClustersIdentifier = _build_identifier_from_config(
-            network, computed, generator_snapshot, config, min_cluster_power, "NUCLEAR"
-        )
-        candidates.extend(list(nuclear_identifier.candidate_clusters))
+
+        # The RTE customization runs a second pass focused on nuclear generators only.
+        # That pass can only split a group when at least two nuclear machines remain.
+        # If the case has zero or one nuclear machine, the NO_HYDRO pass above still
+        # provides the normal candidates and the nuclear-only pass has no physical
+        # critical/non-critical split to add.
+        never_critical_generators: List[str] = list()
+        if config.never_critical_generators is not None:
+            never_critical_generators = list(config.never_critical_generators)
+        else:
+            pass
+
+        nuclear_generator_count: int = 0
+        for generator in generator_snapshot.generators:
+            if generator.source == GeneratorSource.nucleair and generator.name not in never_critical_generators:
+                nuclear_generator_count += 1
+            else:
+                pass
+
+        if nuclear_generator_count >= 2:
+            nuclear_identifier: DuringFaultTrajectoryCriticalClustersIdentifier = _build_identifier_from_config(
+                network, computed, generator_snapshot, config, min_cluster_power, "NUCLEAR"
+            )
+            candidates.extend(list(nuclear_identifier.candidate_clusters))
+        else:
+            pass
 
         unique_candidates = list()
         unique_generators = list()

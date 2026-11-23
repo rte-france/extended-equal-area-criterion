@@ -16,7 +16,7 @@ from typing import List
 
 import numpy as np
 
-from deeac.Models.generator import Generator
+from deeac.Models.generator import SynchronousGenerator
 
 
 class GeneratorSnapshot:
@@ -38,7 +38,7 @@ class GeneratorSnapshot:
     :ivar internal_voltage_abs: Internal voltage magnitude array.
     """
 
-    def __init__(self, generators: List[Generator]):
+    def __init__(self, generators: List[SynchronousGenerator]):
         """
         Initialize the snapshot.
         

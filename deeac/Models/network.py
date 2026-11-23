@@ -17,21 +17,19 @@ from cmath import phase, pi
 from itertools import chain
 
 import numpy as np
+import scipy.sparse as sp
 import networkx as nx
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-from typing import List, Set, Tuple, Dict, Optional, Sequence, TYPE_CHECKING
+from typing import List, Set, Tuple, Dict, Optional, Sequence, TYPE_CHECKING, Union
 from collections import defaultdict
-
-# TODO: All commented imports await complete refactor and
-#  compacting of classes under the new program structure
-
 from deeac.Utils.tools import deepcopy
 from deeac.Models.bus import Bus
 from deeac.Models.branch import Branch
 from deeac.Models.breaker import Breaker, ParallelBreakers
 from deeac.Models.capacitor_bank import CapacitorBank
-from deeac.Models.generator import Generator
+from deeac.Models.generator import PowerElectronicsGenerator, SynchronousGenerator
+from deeac.Models.hvdc_converter import HvdcConverter
 from deeac.Models.load import FictiveLoad, Load
 from deeac.Models.line import Line
 from deeac.Models.transformer import Transformer
@@ -151,7 +149,7 @@ def _plot_network_graph(
 
 class SimplifiedNetwork:
     """
-    Simplifiednetwork.
+    Simplified network.
     
     Rationale:
         This class represents core power-system model data used across parsing,
@@ -200,10 +198,15 @@ class SimplifiedNetwork:
         :rtype: Tuple[np.ndarray, Dict[str, int]]
         """
         if self._reduced_admittance_dense is None or self._reduced_bus_index_map is None:
-            reduced = self.admittance_matrix.reduction
-            dense = np.asarray(reduced.matrix)
-            self._reduced_admittance_dense = dense
-            self._reduced_bus_index_map = reduced.bus_index_map
+
+            if isinstance(self.admittance_matrix.reduction.matrix, np.matrix):
+                self._reduced_admittance_dense = np.array(self.admittance_matrix.reduction.matrix)
+            elif isinstance(self.admittance_matrix.reduction.matrix, sp.csc_matrix):
+                self._reduced_admittance_dense = self.admittance_matrix.reduction.matrix.toarray()
+            else:
+                self._reduced_admittance_dense = np.array(self.admittance_matrix.reduction.matrix)
+
+            self._reduced_bus_index_map = self.admittance_matrix.reduction.bus_index_map
         return self._reduced_admittance_dense, self._reduced_bus_index_map
 
     def get_reduced_admittance_sparse(self):
@@ -241,6 +244,15 @@ class SimplifiedNetwork:
         :return:
         """
         return [gen for bus in self.buses for gen in bus.generators]
+
+    @property
+    def power_electronics_generators(self) -> List[PowerElectronicsGenerator]:
+        """
+        Return converter-based generators of the simplified network.
+
+        :return: Converter-based generators.
+        """
+        return [gen for bus in self.buses for gen in bus.power_electronics_generators]
 
     def get_bus(self, bus_name: str) -> Bus:
         """
@@ -354,43 +366,49 @@ class Network:
         :param frequency: Frequency for this network (50Hz in Europe, default value). unit: Hz.
         :param base_power: Base power used for per-unit conversions.
         """
-        if buses is None:
-            buses = []
-        if breakers is None:
-            breakers = []
+        self.frequency = 50.0 if frequency is None else frequency
 
-        if frequency is None:
-            self.frequency = 50
-        else:
-            self.frequency = frequency
         self.base_power = base_power
 
-        self.buses = buses
-        self._breakers = breakers
+        self.buses: List[Bus] = list() if buses is None else buses
+        self._breakers: List[ParallelBreakers] = list() if breakers is None else breakers
         self.branches: List[Branch] = [] if branches is None else list(branches)
 
         # Lookup maps for parsers and fast access.
         self._bus_map: Dict[str, Bus] = {bus.name: bus for bus in self.buses}
         self._branch_map: Dict[Tuple[str, str], Branch] = {}
         self._load_map: Dict[str, Load] = {}
-        self._generator_map: Dict[str, Generator] = {}
+        self._generator_map: Dict[str, SynchronousGenerator] = {}
+        self._power_electronics_generator_map: Dict[str, PowerElectronicsGenerator] = {}
         self._capacitor_bank_map: Dict[str, CapacitorBank] = {}
         self._svc_map: Dict[str, CapacitorBank] = {}
-        self._hvdc_map: Dict[str, Load] = {}
+        self._hvdc_map: Dict[str, Union[Load, PowerElectronicsGenerator]] = {}
 
         # Different simplified versions of the network, with the buses that were discarded in graph analysis
 
         self._fault_events: List[FaultEvents] = []
 
         # Get generators to avoid expensive operations
-        self._generators: List[Generator] = [generator for bus in buses for generator in bus.generators]
+        self._generators: List[SynchronousGenerator] = [
+            generator for bus in self.buses for generator in bus.generators
+        ]
+
+        self._power_electronics_generators: List[PowerElectronicsGenerator] = [
+            generator for bus in self.buses for generator in bus.power_electronics_generators
+        ]
+
         for generator in self._generators:
             self._generator_map[generator.name] = generator
+
+        for generator in self._power_electronics_generators:
+            self._power_electronics_generator_map[generator.name] = generator
+
         for bus in self.buses:
             for load in bus.loads:
                 self._load_map[load.name] = load
             for bank in bus.capacitor_banks:
                 self._capacitor_bank_map[bank.name] = bank
+
         for branch in self.branches:
             key = (branch.first_bus.name, branch.second_bus.name)
             self._branch_map[key] = branch
@@ -508,7 +526,7 @@ class Network:
         self._load_map[load.name] = load
         load.bus.add_load(load)
 
-    def add_generator(self, generator: Generator) -> None:
+    def add_generator(self, generator: SynchronousGenerator) -> None:
         """
         Add a generator to the network.
 
@@ -519,6 +537,19 @@ class Network:
         self._generator_map[generator.name] = generator
         self._generators.append(generator)
         generator.bus.add_generator(generator)
+
+    def add_power_electronics_generator(self, generator: PowerElectronicsGenerator) -> None:
+        """
+        Add a converter-based generator to the network.
+
+        :param generator: Power-electronics generator to add.
+        :return: Return value.
+        """
+        if generator.name in self._power_electronics_generator_map:
+            raise ValueError(f"Power-electronics generator '{generator.name}' already exists")
+        self._power_electronics_generator_map[generator.name] = generator
+        self._power_electronics_generators.append(generator)
+        generator.bus.add_power_electronics_generator(generator)
 
     def add_capacitor_bank(self, capacitor_bank: CapacitorBank) -> None:
         """
@@ -542,16 +573,40 @@ class Network:
         self._svc_map[svc.name] = svc
         svc.bus.add_capacitor_bank(svc)
 
-    def add_hvdc_converter(self, converter: Load) -> None:
+    def add_hvdc_converter(self, converter: Union[HvdcConverter, Load, PowerElectronicsGenerator]) -> None:
         """
         Add an HVDC converter to the network.
 
         :param converter: HVDC converter to add.
+        :return: Return value.
         """
         if converter.name in self._hvdc_map:
             raise ValueError(f"HVDC converter '{converter.name}' already exists")
-        self._hvdc_map[converter.name] = converter
-        converter.bus.add_load(converter)
+        else:
+            pass
+        if isinstance(converter, HvdcConverter):
+            # HVDC elements decide their numerical footprint from their own
+            # internal settings. Parsers therefore build physical elements,
+            # while the network stores the numerical object used downstream.
+            numerical_converter: Union[Load, PowerElectronicsGenerator] = converter.compile_numerical_element()
+        else:
+            # Backward-compatible API path for callers that still pass an
+            # already-compiled numerical object.
+            numerical_converter = converter
+        self._hvdc_map[numerical_converter.name] = numerical_converter
+        if isinstance(numerical_converter, Load):
+            # Compatibility path:
+            # HVDC converters have historically been represented as passive
+            # loads. Keep that exact bus attachment when the simulation asks
+            # for the legacy model.
+            numerical_converter.bus.add_load(numerical_converter)
+        else:
+            # Current-source path:
+            # Retained converter buses must be visible to the reduced
+            # admittance and OMIB code through the power-electronics store.
+            self._power_electronics_generator_map[numerical_converter.name] = numerical_converter
+            self._power_electronics_generators.append(numerical_converter)
+            numerical_converter.bus.add_power_electronics_generator(numerical_converter)
 
     @property
     def bus_map(self) -> Dict[str, Bus]:
@@ -563,13 +618,22 @@ class Network:
         return self._bus_map
 
     @property
-    def generator_map(self) -> Dict[str, Generator]:
+    def generator_map(self) -> Dict[str, SynchronousGenerator]:
         """
         Map of generators by name.
 
         :return: Generator map.
         """
         return self._generator_map
+
+    @property
+    def power_electronics_generator_map(self) -> Dict[str, PowerElectronicsGenerator]:
+        """
+        Map of converter-based generators by name.
+
+        :return: Converter-based generator map.
+        """
+        return self._power_electronics_generator_map
 
     @property
     def load_map(self) -> Dict[str, Load]:
@@ -581,7 +645,7 @@ class Network:
         return self._load_map
 
     @property
-    def hvdc_map(self) -> Dict[str, Load]:
+    def hvdc_map(self) -> Dict[str, Union[Load, PowerElectronicsGenerator]]:
         """
         Map of HVDC converters by name.
 
@@ -605,7 +669,7 @@ class Network:
         :return: A duplicated version of this network.
         """
         # Use deepcopy in order to keep references linking breakers and buses
-        network = deepcopy(self)
+        network: "Network" = deepcopy(self)
         network._fault_events = self._fault_events
         return network
 
@@ -638,13 +702,22 @@ class Network:
         return 2 * pi * self.frequency
 
     @property
-    def generators(self) -> List[Generator]:
+    def generators(self) -> List[SynchronousGenerator]:
         """
         Get the generators in the network.
         
         :return: The list of generators.
         """
         return self._generators
+
+    @property
+    def power_electronics_generators(self) -> List[PowerElectronicsGenerator]:
+        """
+        Get the converter-based generators in the network.
+
+        :return: The list of converter-based generators.
+        """
+        return self._power_electronics_generators
 
     @property
     def loads(self) -> List[Load]:
@@ -774,7 +847,7 @@ class Network:
         except StopIteration:
             raise KeyError(f"[{first_bus_name} - {second_bus_name}]", Breaker.__name__)
 
-    def get_generator(self, generator_name: str) -> Generator:
+    def get_generator(self, generator_name: str) -> SynchronousGenerator:
         """
         Get the generator with the specified name.
         
@@ -786,7 +859,7 @@ class Network:
             return next(gen for gen in self.generators if gen.name == generator_name)
         except StopIteration:
             # Generator not found
-            raise KeyError(generator_name, Generator.__name__)
+            raise KeyError(generator_name, SynchronousGenerator.__name__)
 
     def change_breaker_position(self, first_bus_name: str, second_bus_name: str, parallel_id: str, closed: bool):
         """
@@ -881,6 +954,7 @@ class Network:
 
         # Remove buses that were coupled to another one
         network_buses_short = [bus for bus in network.buses if bus not in coupled_buses]
+
         # No breaker in the simplified network as buses were merged
         network.breakers.clear()
 
@@ -1000,7 +1074,7 @@ class Network:
             i = index_map[generator1_name]
             j = index_map[generator2_name]
         except KeyError:
-            raise KeyError(f"{generator1_name} or {generator2_name}", Generator.__name__)
+            raise KeyError(f"{generator1_name} or {generator2_name}", SynchronousGenerator.__name__)
         return float(voltage_matrix[i, j])
 
     def get_admittance(
@@ -1040,7 +1114,7 @@ class Network:
 
 class NetworkComputed:
     """
-    Networkcomputed.
+    Network computed.
     
     Rationale:
         This class represents core power-system model data used across parsing,
@@ -1122,7 +1196,7 @@ class NetworkComputed:
             return self.reduced_post
         raise ValueError(state)
 
-    def ensure_generator_voltage_matrix(self, network: "Network") -> Tuple[Dict[str, int], np.ndarray]:
+    def ensure_generator_voltage_matrix(self, network: "Network") -> Tuple[Dict[str, int] | None, np.ndarray | None]:
         """
         Ensure generator voltage product matrix is computed.
         

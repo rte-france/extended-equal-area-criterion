@@ -20,7 +20,7 @@ import numpy as np
 
 from deeac.Simulations.identifiers.identifier import GapBasedIdentifier
 
-from deeac.Models.generator import Generator
+from deeac.Models.generator import SynchronousGenerator
 from deeac.Models.generator_snapshot import GeneratorSnapshot
 from deeac.Models.network import Network, NetworkComputed, NetworkState
 
@@ -120,7 +120,7 @@ class DuringFaultTrajectoryCriticalClustersIdentifier(GapBasedIdentifier):
         :param never_critical_generators: the generators that must be excluded from the critical cluster identification
         """
         self._computed = computed
-        self._snapshot_generators: List[Generator] = list(generator_snapshot.generators)
+        self._snapshot_generators: List[SynchronousGenerator] = list(generator_snapshot.generators)
         (
             self._snapshot_rotor_angles,
             self._snapshot_voltages,
@@ -145,7 +145,7 @@ class DuringFaultTrajectoryCriticalClustersIdentifier(GapBasedIdentifier):
 
     @staticmethod
     def _build_generator_snapshot(
-        generators: List[Generator],
+        generators: List[SynchronousGenerator],
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, List[str]]:
         """
         Build array snapshots for generator data.
@@ -180,12 +180,12 @@ class DuringFaultTrajectoryCriticalClustersIdentifier(GapBasedIdentifier):
 
     def _get_generator_arrays(
         self,
-    ) -> Tuple[List[Generator], np.ndarray, np.ndarray, np.ndarray, np.ndarray, List[str]]:
+    ) -> Tuple[List[SynchronousGenerator], np.ndarray, np.ndarray, np.ndarray, np.ndarray, List[str]]:
         """
         get generator arrays.
         
         :return: Return value.
-        :rtype: Tuple[List[Generator], np.ndarray, np.ndarray, np.ndarray, np.ndarray, List[str]]
+        :rtype: Tuple[List[SynchronousGenerator], np.ndarray, np.ndarray, np.ndarray, np.ndarray, List[str]]
         """
         return (
             list(self._snapshot_generators),
